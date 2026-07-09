@@ -572,9 +572,9 @@ public class ClickGUI extends Screen {
             }
         }
 
-        // Extract Setup Spotify button if search is empty
+        // Extract Setup button (source-aware) if search is empty
         if (searchInputText.isEmpty()) {
-            if (!SpotifyManager.isConfigured()) {
+            if (!MusicManager.isConfigured()) {
                 float btnW = 80.0f;
                 float btnH = 15.0f;
                 float btnX = x + (WIDTH - btnW) / 2.0f;
@@ -606,10 +606,11 @@ public class ClickGUI extends Screen {
 
                 var statusFont = MsdfFontManager.getFont("productsans-semibold", 7.0f);
                 if (statusFont != null) {
-                    float textW = statusFont.getWidth("Setup Spotify", 7.0f);
+                    String setupLabel = "Setup " + MusicManager.sourceDisplayName();
+                    float textW = statusFont.getWidth(setupLabel, 7.0f);
                     graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
                             statusFont,
-                            "Setup Spotify",
+                            setupLabel,
                             new Matrix3x2f(pose),
                             btnX + btnW / 2.0f - textW / 2.0f,
                             btnY + btnH / 2.0f - statusFont.getHeight(7.0f) / 2.0f,
@@ -834,30 +835,24 @@ public class ClickGUI extends Screen {
                     float artX = listX + 2.0f;
                     float artY = itemY + (itemH - artSize) / 2.0f;
 
+                    ImageManager.CachedImage artCached = null;
                     if (!track.artworkUrl().isEmpty()) {
-                        ImageManager.CachedImage artCached = ImageManager.fromUrl(track.artworkUrl());
-                        if (artCached != null) {
-                            graphics.guiRenderState.addGuiElement(new ImageRenderState(
-                                    HaloRenderPipelines.IMAGE,
-                                    artCached.textureSetup(),
-                                    pose,
-                                    artX, artY, artSize, artSize,
-                                    ARGB.color(255, 255, 255, 255),
-                                    2.0f,
-                                    ImageRenderState.ScaleMode.FILL,
-                                    artCached.width(), artCached.height(),
-                                    scissor
-                            ));
-                        } else {
-                            graphics.guiRenderState.addGuiElement(new RoundedRectangleRenderState(
-                                    HaloRenderPipelines.ROUNDED_RECT,
-                                    pose,
-                                    artX, artY, artSize, artSize,
-                                    ARGB.color(255, 40, 40, 40),
-                                    2.0f,
-                                    scissor
-                            ));
-                        }
+                        artCached = ImageManager.fromUrl(track.artworkUrl());
+                    } else if (!track.localArtworkPath().isEmpty()) {
+                        artCached = loadLocalArt(track.localArtworkPath());
+                    }
+                    if (artCached != null) {
+                        graphics.guiRenderState.addGuiElement(new ImageRenderState(
+                                HaloRenderPipelines.IMAGE,
+                                artCached.textureSetup(),
+                                pose,
+                                artX, artY, artSize, artSize,
+                                ARGB.color(255, 255, 255, 255),
+                                2.0f,
+                                ImageRenderState.ScaleMode.FILL,
+                                artCached.width(), artCached.height(),
+                                scissor
+                        ));
                     } else {
                         graphics.guiRenderState.addGuiElement(new RoundedRectangleRenderState(
                                 HaloRenderPipelines.ROUNDED_RECT,
@@ -1073,17 +1068,25 @@ public class ClickGUI extends Screen {
                     float playX = listX + listW - 12.0f;
                     float likeX = playX - 16.0f;
                     
+                    boolean subsonicSource = MusicManager.getActiveSource() == MusicManager.Source.SUBSONIC;
                     if (isHovered(mouseX, mouseY, playX - 5.0f, itemY, playBtnW + 10.0f, itemH)) {
-                        if (track.isPlaylist()) {
+                        if (subsonicSource) {
+                            SubsonicManager.getInstance().playSearchResult(track.id(), track.title(), track.artist(), track.localArtworkPath());
+                        } else if (track.isPlaylist()) {
                             SpotifyManager.getInstance().playPlaylist(track.id());
                         } else {
                             SpotifyManager.getInstance().playTrack(track.id());
                         }
                         return true;
                     }
-                    
+
                     if (isHovered(mouseX, mouseY, likeX - 5.0f, itemY, likeBtnW + 10.0f, itemH)) {
-                        if (!track.isPlaylist()) {
+                        if (subsonicSource) {
+                            SubsonicManager.getInstance().star(track.id(), !track.liked());
+                            searchResults.set(i, new SpotifyManager.SearchResultTrack(
+                                track.id(), track.title(), track.artist(), track.artworkUrl(), track.localArtworkPath(), !track.liked(), false
+                            ));
+                        } else if (!track.isPlaylist()) {
                             SpotifyManager.getInstance().likeTrack(track.id(), !track.liked());
                             searchResults.set(i, new SpotifyManager.SearchResultTrack(
                                 track.id(), track.title(), track.artist(), track.artworkUrl(), track.localArtworkPath(), !track.liked(), false
@@ -1340,18 +1343,29 @@ public class ClickGUI extends Screen {
                 return true;
             }
 
-            // Setup Spotify button click
-            if (!SpotifyManager.isConfigured()) {
+            // Setup button click (source-aware)
+            if (!MusicManager.isConfigured()) {
                 float btnW = 80.0f;
                 float btnH = 15.0f;
                 float btnX = x + (WIDTH - btnW) / 2.0f;
                 float btnY = y + HEIGHT - btnH - PADDING;
                 if (isHovered(mouseX, mouseY, btnX, btnY, btnW, btnH)) {
-                    SpotifyManager.getInstance().startSetupServer();
-                    openUrl("http://127.0.0.1:8888/setup");
+                    if (MusicManager.getActiveSource() == MusicManager.Source.SUBSONIC) {
+                        SubsonicManager.getInstance().startSetupServer();
+                        openUrl("http://127.0.0.1:8889/setup");
+                    } else {
+                        SpotifyManager.getInstance().startSetupServer();
+                        openUrl("http://127.0.0.1:8888/setup");
+                    }
                     return true;
                 }
             }
+        }
+
+        // Right-click the header strip toggles the active music source (Spotify <-> Subsonic)
+        if (button == 1 && isHovered(rawMouseX, rawMouseY, x, y, WIDTH, 25.0f)) {
+            MusicManager.toggleSource();
+            return true;
         }
 
         // Dragging window check (using raw coordinates)
@@ -1983,6 +1997,35 @@ public class ClickGUI extends Screen {
         }
     }
 
+    @Override
+    public void removed() {
+        // Persist any settings changed in the GUI (colors, gui size, toggles, sliders).
+        MusicDisplayOverlay.scheduleSave();
+        super.removed();
+    }
+
+    private static final java.util.Map<String, ImageManager.CachedImage> localArtCache = new java.util.HashMap<>();
+
+    /** Loads a search-result cover from a local file (already downloaded by the provider), cached by path. */
+    private static ImageManager.CachedImage loadLocalArt(String path) {
+        if (path == null || path.isEmpty()) return null;
+        ImageManager.CachedImage cached = localArtCache.get(path);
+        if (cached != null) return cached;
+        try {
+            java.io.File f = new java.io.File(path);
+            if (f.exists() && f.length() > 0) {
+                byte[] bytes = java.nio.file.Files.readAllBytes(f.toPath());
+                ImageManager.CachedImage img = ImageManager.fromBytes("localart:" + path, bytes);
+                if (img != null) {
+                    localArtCache.put(path, img);
+                    return img;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
     private static void openUrl(String url) {
         try {
             String os = System.getProperty("os.name").toLowerCase();
@@ -2007,8 +2050,11 @@ public class ClickGUI extends Screen {
         }
         searchLoading = true;
         SpotifyManager.SearchFilter filter = this.currentSearchFilter;
+        boolean subsonic = MusicManager.getActiveSource() == MusicManager.Source.SUBSONIC;
         java.util.concurrent.CompletableFuture.runAsync(() -> {
-            var results = SpotifyManager.getInstance().search(query, filter);
+            var results = subsonic
+                    ? SubsonicManager.getInstance().search(query)
+                    : SpotifyManager.getInstance().search(query, filter);
             Minecraft.getInstance().execute(() -> {
                 if (searchInputText.equals(query) && this.currentSearchFilter == filter) {
                     this.searchResults = results;

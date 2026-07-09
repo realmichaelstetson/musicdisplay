@@ -43,13 +43,34 @@ public class HaloClient implements ClientModInitializer {
             HALO_CATEGORY
     );
 
+    public static final net.minecraft.client.KeyMapping openSubsonicSetupKey = new net.minecraft.client.KeyMapping(
+            "key.halo.subsonicsetup",
+            org.lwjgl.glfw.GLFW.GLFW_KEY_HOME,
+            HALO_CATEGORY
+    );
+
+    private static void openBrowser(String url) {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            if (os.contains("win")) {
+                new ProcessBuilder("cmd.exe", "/c", "start", url).start();
+            } else if (os.contains("mac")) {
+                new ProcessBuilder("open", url).start();
+            } else {
+                new ProcessBuilder("xdg-open", url).start();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public void onInitializeClient() {
         INSTANCE = this;
         HaloRenderPipelines.init();
         moduleManager = new ModuleManager();
-        com.haloclient.client.gui.click.SpotifyManager.getInstance().load();
-        com.haloclient.client.gui.click.SpotifyManager.getInstance().startPolling();
+        com.haloclient.client.gui.click.MusicManager.load();
+        com.haloclient.client.gui.click.MusicManager.startPolling();
 
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openClickGuiKey.consumeClick()) {
@@ -57,11 +78,15 @@ public class HaloClient implements ClientModInitializer {
                     client.setScreen(new com.haloclient.client.gui.click.ClickGUI());
                 }
             }
+            while (openSubsonicSetupKey.consumeClick()) {
+                com.haloclient.client.gui.click.SubsonicManager.getInstance().startSetupServer();
+                openBrowser("http://127.0.0.1:8889/setup");
+            }
         });
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
-                com.haloclient.client.gui.click.SpotifyManager.getInstance().cleanOldArtworkCache();
+                com.haloclient.client.gui.click.MusicManager.cleanup();
             } catch (Throwable ignored) {}
         });
     }

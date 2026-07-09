@@ -98,6 +98,98 @@ public final class MusicDisplayOverlay {
     private MusicDisplayOverlay() {
     }
 
+    // ------------------------------------------------------------------
+    // Settings persistence (size, position, enabled state, colors...)
+    // ------------------------------------------------------------------
+
+    private static final java.util.concurrent.ExecutorService SETTINGS_EXEC =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "Halo Overlay Settings");
+                t.setDaemon(true);
+                return t;
+            });
+    private static volatile boolean settingsLoaded = false;
+
+    private static java.io.File settingsFile() {
+        return new java.io.File(Minecraft.getInstance().gameDirectory, "config/musicdisplay-overlay.json");
+    }
+
+    /** Persists the overlay settings (debounced onto a background thread to avoid render-thread IO). */
+    public static void scheduleSave() {
+        if (!settingsLoaded) return; // avoid clobbering the file before the initial load
+        SETTINGS_EXEC.execute(MusicDisplayOverlay::saveSettingsNow);
+    }
+
+    private static synchronized void saveSettingsNow() {
+        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        json.addProperty("enabled", isOpened());
+        json.addProperty("userScale", targetUserScale);
+        if (!Float.isNaN(relativeX)) json.addProperty("posX", relativeX);
+        if (!Float.isNaN(relativeY)) json.addProperty("posY", relativeY);
+        json.addProperty("showControls", showControls);
+        json.addProperty("showNextSong", showNextSong);
+        json.addProperty("blur", blurStrength);
+        json.addProperty("bloom", bloomStrength);
+        json.addProperty("backgroundType", backgroundType.name());
+        json.addProperty("backgroundColor", backgroundColor);
+        json.addProperty("titleColor", titleColor);
+        json.addProperty("artistColor", artistColor);
+        json.addProperty("timeColor", timeColor);
+        json.addProperty("progressColor", progressColor);
+        json.addProperty("guiScale", ClickGUI.guiScale);
+        try {
+            java.io.File f = settingsFile();
+            if (f.getParentFile() != null && !f.getParentFile().exists()) f.getParentFile().mkdirs();
+            try (java.io.Writer w = new java.io.FileWriter(f, java.nio.charset.StandardCharsets.UTF_8)) {
+                new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(json, w);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /** Loads persisted overlay settings. Call once at startup. */
+    public static void loadSettings() {
+        try {
+            java.io.File f = settingsFile();
+            if (f.exists()) {
+                com.google.gson.JsonObject json;
+                try (java.io.Reader r = new java.io.FileReader(f, java.nio.charset.StandardCharsets.UTF_8)) {
+                    json = com.google.gson.JsonParser.parseReader(r).getAsJsonObject();
+                }
+                if (json.has("userScale")) {
+                    targetUserScale = json.get("userScale").getAsFloat();
+                    userScaleAnimation.setStartValue(targetUserScale);
+                    userScaleAnimation.setValue(targetUserScale);
+                }
+                if (json.has("posX")) relativeX = json.get("posX").getAsFloat();
+                if (json.has("posY")) relativeY = json.get("posY").getAsFloat();
+                if (json.has("showControls")) showControls = json.get("showControls").getAsBoolean();
+                if (json.has("showNextSong")) showNextSong = json.get("showNextSong").getAsBoolean();
+                if (json.has("blur")) blurStrength = json.get("blur").getAsFloat();
+                if (json.has("bloom")) bloomStrength = json.get("bloom").getAsFloat();
+                if (json.has("backgroundType")) {
+                    try {
+                        backgroundType = BackgroundType.valueOf(json.get("backgroundType").getAsString());
+                    } catch (Exception ignored) {
+                    }
+                }
+                if (json.has("backgroundColor")) backgroundColor = json.get("backgroundColor").getAsInt();
+                if (json.has("titleColor")) titleColor = json.get("titleColor").getAsInt();
+                if (json.has("artistColor")) artistColor = json.get("artistColor").getAsInt();
+                if (json.has("timeColor")) timeColor = json.get("timeColor").getAsInt();
+                if (json.has("progressColor")) progressColor = json.get("progressColor").getAsInt();
+                if (json.has("guiScale")) ClickGUI.guiScale = json.get("guiScale").getAsFloat();
+                if (json.has("enabled") && json.get("enabled").getAsBoolean()) {
+                    setVisible(true);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        settingsLoaded = true;
+    }
+
     public static boolean isVisible() {
         return visible;
     }
@@ -119,6 +211,7 @@ public final class MusicDisplayOverlay {
             scaleAnimation.setStartValue(scaleAnimation.getValue());
             scaleAnimation.reset();
         }
+        scheduleSave();
     }
 
     public static boolean isShowControls() {
@@ -127,6 +220,7 @@ public final class MusicDisplayOverlay {
 
     public static void setShowControls(boolean value) {
         showControls = value;
+        scheduleSave();
     }
 
     public static boolean isShowNextSong() {
@@ -135,6 +229,7 @@ public final class MusicDisplayOverlay {
 
     public static void setShowNextSong(boolean value) {
         showNextSong = value;
+        scheduleSave();
     }
 
     public static float getBlurStrength() {
@@ -143,6 +238,7 @@ public final class MusicDisplayOverlay {
 
     public static void setBlurStrength(float value) {
         blurStrength = clamp(value, 0.0f, 30.0f);
+        scheduleSave();
     }
 
     public static float getBloomStrength() {
@@ -151,6 +247,7 @@ public final class MusicDisplayOverlay {
 
     public static void setBloomStrength(float value) {
         bloomStrength = clamp(value, 0.0f, 20.0f);
+        scheduleSave();
     }
 
     public static BackgroundType getBackgroundType() {
@@ -159,6 +256,7 @@ public final class MusicDisplayOverlay {
 
     public static void setBackgroundType(BackgroundType value) {
         backgroundType = value;
+        scheduleSave();
     }
 
     public static void render(GuiGraphicsExtractor graphics) {
@@ -239,10 +337,11 @@ public final class MusicDisplayOverlay {
         ScreenRectangle scissor = parentScissor != null ? parentScissor.intersection(cardBounds) : cardBounds;
 
         loadAssets();
-        SpotifyManager.MediaStatus status = SpotifyManager.getStatus();
-        boolean isConfigured = SpotifyManager.isConfigured();
-        String title = isConfigured ? (status.hasMedia() ? status.title() : "No media playing") : "Spotify not connected";
-        String artist = isConfigured ? (status.hasMedia() && !status.artist().isBlank() ? status.artist() : "Spotify API") : "Setup in ClickGUI";
+        SpotifyManager.MediaStatus status = MusicManager.getStatus();
+        boolean isConfigured = MusicManager.isConfigured();
+        String sourceName = MusicManager.sourceDisplayName();
+        String title = isConfigured ? (status.hasMedia() ? status.title() : "No media playing") : sourceName + " not connected";
+        String artist = isConfigured ? (status.hasMedia() && !status.artist().isBlank() ? status.artist() : sourceName) : "Setup in ClickGUI";
         ImageManager.CachedImage currentAlbumArt = isConfigured ? getAlbumArt(status.artworkPath()) : null;
         float progress = isConfigured ? status.progress() : 0.0f;
         float textX = localX + PADDING + COVER_SIZE + 7.0f;
@@ -573,7 +672,7 @@ public final class MusicDisplayOverlay {
         }
 
         // --- Next Song Card Rendering ---
-        SpotifyManager.NextTrack nextTrack = SpotifyManager.getNextTrack();
+        SpotifyManager.NextTrack nextTrack = MusicManager.getNextTrack();
         boolean hasNextSong = isConfigured && showNextSong && nextTrack != null && nextTrack.hasMedia();
         nextSongScaleAnimation.run(hasNextSong ? 1.0f : 0.0f);
         float nextSongScale = nextSongScaleAnimation.getValue();
@@ -1084,33 +1183,33 @@ public final class MusicDisplayOverlay {
             if (button == 0) {
                 // If controls are shown, check if clicking controls row (localMY >= 40.0)
                 if (showControls && heightAnimation.getValue() > 44.0f && localMY >= 40.0f) {
-                    SpotifyManager.MediaStatus status = SpotifyManager.getStatus();
-                    boolean isConfigured = SpotifyManager.isConfigured();
+                    SpotifyManager.MediaStatus status = MusicManager.getStatus();
+                    boolean isConfigured = MusicManager.isConfigured() && MusicManager.supportsControls();
 
                     // Left controls: Speaker icon (E) / Volume Slider
                     if (isConfigured && localMX >= 18.0f && localMX <= 48.0f && localMY >= 40.0f && localMY <= 58.0f) {
                         draggingVolume = true;
                         float pct = clamp((localMX - 18.0f) / 30.0f, 0.0f, 1.0f);
-                        SpotifyManager.getInstance().setVolume((int) (pct * 100));
+                        MusicManager.setVolume((int) (pct * 100));
                         return true;
                     }
                     if (isConfigured && localMX >= 6.0f && localMX <= 17.0f && localMY >= 40.0f && localMY <= 58.0f) {
-                        SpotifyManager.getInstance().setVolume(status.volumePercent() > 0 ? 0 : 50);
+                        MusicManager.setVolume(status.volumePercent() > 0 ? 0 : 50);
                         return true;
                     }
 
                     // Middle playback controls
                     if (isConfigured) {
                         if (localMX >= 88.0f- 5 && localMX <= 101.0f- 5 && localMY >= 40.0f && localMY <= 58.0f) {
-                            SpotifyManager.getInstance().togglePlayPause();
+                            MusicManager.togglePlayPause();
                             return true;
                         }
                         if (localMX >= 73.0f- 5 && localMX <= 87.0f- 5 && localMY >= 40.0f && localMY <= 58.0f) {
-                            SpotifyManager.getInstance().previous();
+                            MusicManager.previous();
                             return true;
                         }
                         if (localMX >= 102.0f- 5 && localMX <= 116.0f- 5 && localMY >= 40.0f && localMY <= 58.0f) {
-                            SpotifyManager.getInstance().next();
+                            MusicManager.next();
                             return true;
                         }
                     }
@@ -1118,15 +1217,15 @@ public final class MusicDisplayOverlay {
                     // Right controls: Shuffle / Like / Loop
                     if (isConfigured) {
                         if (localMX >= 160.0f && localMX <= 172.0f && localMY >= 40.0f && localMY <= 58.0f) {
-                            SpotifyManager.getInstance().toggleLike();
+                            MusicManager.toggleLike();
                             return true;
                         }
                         if (localMX >= 147.0f && localMX <= 159.0f && localMY >= 40.0f && localMY <= 58.0f) {
-                            SpotifyManager.getInstance().toggleShuffle(!status.shuffleState());
+                            MusicManager.toggleShuffle(!status.shuffleState());
                             return true;
                         }
                         if (localMX >= 134.0f && localMX <= 146.0f && localMY >= 40.0f && localMY <= 58.0f) {
-                            SpotifyManager.getInstance().toggleRepeat();
+                            MusicManager.toggleRepeat();
                             return true;
                         }
                     }
@@ -1172,7 +1271,7 @@ public final class MusicDisplayOverlay {
             float pivotX = x + WIDTH / 2.0f;
             float localMX = (float) ((mouseX - pivotX) / totalScale + WIDTH / 2.0f);
             float pct = clamp((localMX - 18.0f) / 30.0f, 0.0f, 1.0f);
-            SpotifyManager.getInstance().setVolume((int) (pct * 100));
+            MusicManager.setVolume((int) (pct * 100));
             return true;
         }
         if (dragging && button == 0) {
@@ -1240,6 +1339,7 @@ public final class MusicDisplayOverlay {
         }
         if (dragging && button == 0) {
             dragging = false;
+            scheduleSave();
             return true;
         }
         return false;
@@ -1258,6 +1358,7 @@ public final class MusicDisplayOverlay {
 
         if (mouseX >= currentX && mouseX <= currentX + currentW && mouseY >= currentY && mouseY <= currentY + currentH) {
             targetUserScale = clamp(targetUserScale + (float) scrollY * 0.05f, 0.4f, 2.5f);
+            scheduleSave();
             return true;
         }
         return false;
