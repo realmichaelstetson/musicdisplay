@@ -1,0 +1,120 @@
+package cc.kamshi.renderers.impl;
+
+import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.vertex.VertexFormat.DrawMode;
+
+import cc.kamshi.providers.ResourceProvider;
+import net.minecraft.client.gl.RenderPipelines;
+import net.minecraft.client.gl.UniformType;
+import net.minecraft.client.render.VertexFormats;
+
+public final class CRenderPipelines {
+
+    public static final RenderPipeline.Snippet ROUNDED_QUAD_SNIPPET = RenderPipeline.builder(
+        new RenderPipeline.Snippet[] {RenderPipelines.MATRICES_SNIPPET}
+    ).withUniform("Size", UniformType.VEC2).withUniform("Radius", UniformType.VEC4).buildSnippet();
+    
+    public static final RenderPipeline.Snippet SMOOTHED_ROUNDED_QUAD_SNIPPET = RenderPipeline.builder(
+        new RenderPipeline.Snippet[] {ROUNDED_QUAD_SNIPPET}
+    ).withUniform("Smoothness", UniformType.FLOAT).buildSnippet();
+
+    public static final RenderPipeline RECTANGLE_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {SMOOTHED_ROUNDED_QUAD_SNIPPET})
+            .withLocation("pipeline/rectangle")
+            .withVertexShader(ResourceProvider.getShaderIdentifier("rectangle"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("rectangle"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_COLOR, DrawMode.QUADS).build()
+    );
+    
+    public static final RenderPipeline BORDER_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {ROUNDED_QUAD_SNIPPET})
+            .withLocation("pipeline/border")
+            .withUniform("Smoothness", UniformType.VEC2).withUniform("Thickness", UniformType.FLOAT)
+            .withVertexShader(ResourceProvider.getShaderIdentifier("border"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("border"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_COLOR, DrawMode.QUADS).build()
+    );
+    
+    public static final RenderPipeline TEXTURE_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {SMOOTHED_ROUNDED_QUAD_SNIPPET})
+            .withLocation("pipeline/texture")
+            .withSampler("Sampler0")
+            .withVertexShader(ResourceProvider.getShaderIdentifier("texture"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("texture"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, DrawMode.QUADS).build()
+    );
+    
+    public static final RenderPipeline MSDF_FONT_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {RenderPipelines.MATRICES_SNIPPET})
+            .withLocation("pipeline/msdf_font")
+            .withUniform("Range", UniformType.FLOAT).withUniform("Thickness", UniformType.FLOAT)
+            .withUniform("Smoothness", UniformType.FLOAT).withUniform("Outline", UniformType.INT)
+            .withUniform("OutlineThickness", UniformType.FLOAT).withSampler("Sampler0")
+            .withVertexShader(ResourceProvider.getShaderIdentifier("msdf_font"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("msdf_font"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_TEXTURE_COLOR, DrawMode.QUADS).build()
+    );
+
+    public static final RenderPipeline BLIT_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[0])
+            .withLocation("pipeline/blit")
+            .withVertexShader("core/blit_screen")
+            .withFragmentShader("core/blit_screen")
+            .withSampler("InSampler")
+            .withoutBlend()
+            .withVertexFormat(VertexFormats.POSITION, DrawMode.QUADS).build()
+    );
+
+    public static final RenderPipeline.Snippet LIQUID_GLASS_SNIPPET = RenderPipeline.builder(
+        new RenderPipeline.Snippet[] {SMOOTHED_ROUNDED_QUAD_SNIPPET}
+    ).withUniform("BlurRadius", UniformType.FLOAT)
+     .withUniform("Color2", UniformType.VEC4)
+     .withUniform("GradientAngle", UniformType.FLOAT)
+     .withUniform("Bloom", UniformType.FLOAT)
+     .withUniform("CornerMask", UniformType.FLOAT)
+     .buildSnippet();
+
+    public static final RenderPipeline BLUR_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {LIQUID_GLASS_SNIPPET})
+            .withLocation("pipeline/blur")
+            .withSampler("Sampler0")
+            .withVertexShader(ResourceProvider.getShaderIdentifier("blur"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("blur"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_COLOR, DrawMode.QUADS).build()
+    );
+
+    public static final RenderPipeline LIQUID_GLASS_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {LIQUID_GLASS_SNIPPET})
+            .withLocation("pipeline/liquid_glass")
+            .withSampler("Sampler0")
+            .withVertexShader(ResourceProvider.getShaderIdentifier("liquid_glass"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("liquid_glass"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_COLOR, DrawMode.QUADS).build()
+    );
+
+    public static final RenderPipeline.Snippet SPINNER_SNIPPET = RenderPipeline.builder(
+        new RenderPipeline.Snippet[] {RenderPipelines.MATRICES_SNIPPET}
+    ).withUniform("Size", UniformType.VEC2)
+     .withUniform("StartAngle", UniformType.FLOAT)
+     .withUniform("SweepAngle", UniformType.FLOAT)
+     .withUniform("Radius", UniformType.FLOAT)
+     .withUniform("Thickness", UniformType.FLOAT)
+     .buildSnippet();
+
+    public static final RenderPipeline SPINNER_PIPLINE = RenderPipelines.register(
+        RenderPipeline.builder(new RenderPipeline.Snippet[] {SPINNER_SNIPPET})
+            .withLocation("pipeline/spinner")
+            .withVertexShader(ResourceProvider.getShaderIdentifier("spinner"))
+            .withFragmentShader(ResourceProvider.getShaderIdentifier("spinner"))
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withVertexFormat(VertexFormats.POSITION_COLOR, DrawMode.QUADS).build()
+    );
+
+}

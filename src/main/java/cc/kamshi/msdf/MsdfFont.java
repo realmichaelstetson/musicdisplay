@@ -35,8 +35,8 @@ public final class MsdfFont {
 		this.kernings = kernings;
 	}
 
-	public int getTextureId() {
-		return this.texture.getGlId();
+	public com.mojang.blaze3d.textures.GpuTexture getGlTexture() {
+		return this.texture.getGlTexture();
 	}
 	
 	public boolean hasGlyph(int codepoint) {
@@ -142,7 +142,7 @@ public final class MsdfFont {
 						"; Are you sure this is json file? Try to check the correctness of its syntax.");
 			}
 			
-			RenderSystem.recordRenderCall(() -> texture.setFilter(true, false));
+			RenderSystem.queueFencedTask(() -> texture.setFilter(true, false));
 			
 			float aWidth = data.atlas().width();
 			float aHeight = data.atlas().height();

@@ -1,5 +1,7 @@
 package cc.kamshi.builders.impl;
 
+import com.mojang.blaze3d.textures.GpuTexture;
+
 import cc.kamshi.builders.AbstractBuilder;
 import cc.kamshi.builders.states.QuadColorState;
 import cc.kamshi.builders.states.QuadRadiusState;
@@ -15,7 +17,7 @@ public final class TextureBuilder extends AbstractBuilder<BuiltTexture> {
     private float smoothness;
     private float u, v;
     private float texWidth, texHeight;
-    private int textureId;
+    private GpuTexture glTexture;
 
     public TextureBuilder size(SizeState size) {
         this.size = size;
@@ -43,15 +45,15 @@ public final class TextureBuilder extends AbstractBuilder<BuiltTexture> {
     }
 
     public TextureBuilder texture(float u, float v, float texWidth, float texHeight, AbstractTexture texture) {
-        return texture(u, v, texWidth, texHeight, texture.getGlId());
+        return texture(u, v, texWidth, texHeight, texture.getGlTexture());
     }
 
-    public TextureBuilder texture(float u, float v, float texWidth, float texHeight, int textureId) {
+    public TextureBuilder texture(float u, float v, float texWidth, float texHeight, GpuTexture glTexture) {
         this.u = u;
         this.v = v;
         this.texWidth = texWidth;
         this.texHeight = texHeight;
-        this.textureId = textureId;
+        this.glTexture = glTexture;
         return this;
     }
 
@@ -64,7 +66,7 @@ public final class TextureBuilder extends AbstractBuilder<BuiltTexture> {
             this.smoothness,
             this.u, this.v,
             this.texWidth, this.texHeight,
-            this.textureId
+            this.glTexture
         );
     }
 
@@ -78,7 +80,7 @@ public final class TextureBuilder extends AbstractBuilder<BuiltTexture> {
         this.v = 0.0f;
         this.texWidth = 0.0f;
         this.texHeight = 0.0f;
-        this.textureId = 0;
+        this.glTexture = null;
     }
 
 }

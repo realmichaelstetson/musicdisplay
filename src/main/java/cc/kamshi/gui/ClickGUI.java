@@ -21,7 +21,8 @@ import java.util.function.Supplier;
 import cc.kamshi.gui.animation.Animation;
 import cc.kamshi.gui.animation.Easing;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.ShaderProgramKeys;
+import net.minecraft.client.gl.RenderPipelines;
+import com.mojang.blaze3d.vertex.VertexFormat.DrawMode;
 
 public class ClickGUI extends Screen {
 
@@ -242,15 +243,13 @@ public class ClickGUI extends Screen {
         if (texture != null) {
             texture.setFilter(true, false);
         }
-        int textureId = texture != null ? texture.getGlId() : 0;
-
         float iconSize = 13f;
         float iconX = x + 8;
         float iconY = y + 14 - iconSize/2f;
 
         BuiltTexture spotifyIcon = Builder.texture()
             .size(new SizeState(iconSize, iconSize))
-            .texture(0f, 0f, 1f, 1f, textureId)
+            .texture(0f, 0f, 1f, 1f, texture)
             .radius(0f)
             .smoothness(0f)
             .color(new QuadColorState(new Color(255, 255, 255, (int) (255 * currentAlpha))))
@@ -554,25 +553,19 @@ public class ClickGUI extends Screen {
                         hoverBg.render(matrix, x + 8.0f, ry);
                     }
 
-                    int artTexId = 0;
+                    AbstractTexture artTexture = null;
                     if (item.localArtworkPath() != null && !item.localArtworkPath().isEmpty()) {
                         Identifier artId = SpotifyOverlay.getOrCreateArtworkTexture(item.localArtworkPath());
                         if (artId != null) {
-                            var texObj = this.client.getTextureManager().getTexture(artId);
-                            if (texObj != null) {
-                                artTexId = texObj.getGlId();
-                            }
+                            artTexture = this.client.getTextureManager().getTexture(artId);
                         }
                     }
-                    if (artTexId == 0) {
-                        var texObj = this.client.getTextureManager().getTexture(SPOTIFY_ICON);
-                        if (texObj != null) {
-                            artTexId = texObj.getGlId();
-                        }
+                    if (artTexture == null) {
+                        artTexture = this.client.getTextureManager().getTexture(SPOTIFY_ICON);
                     }
                     BuiltTexture artwork = Builder.texture()
                         .size(new SizeState(18f, 18f))
-                        .texture(0f, 0f, 1f, 1f, artTexId)
+                        .texture(0f, 0f, 1f, 1f, artTexture)
                         .radius(2f)
                         .smoothness(0.5f)
                         .color(QuadColorState.WHITE)
@@ -1614,14 +1607,10 @@ public class ClickGUI extends Screen {
     private void drawSVGradient(Matrix4f matrix, float x, float y, float w, float h, Color pureHue) {
         net.minecraft.client.render.Tessellator tessellator = net.minecraft.client.render.Tessellator.getInstance();
         net.minecraft.client.render.BufferBuilder builder = tessellator.begin(
-            net.minecraft.client.render.VertexFormat.DrawMode.QUADS, 
+            DrawMode.QUADS, 
             net.minecraft.client.render.VertexFormats.POSITION_COLOR
         );
 
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-        com.mojang.blaze3d.systems.RenderSystem.disableCull();
-        com.mojang.blaze3d.systems.RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
 
         int steps = (int) w;
         for (int i = 0; i < steps; i++) {
@@ -1650,9 +1639,7 @@ public class ClickGUI extends Screen {
             builder.vertex(matrix, x2, y, 0).color(cTopRight);
         }
 
-        net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(builder.end());
-        com.mojang.blaze3d.systems.RenderSystem.enableCull();
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+        cc.kamshi.renderers.impl.BufferRenderer.draw(builder.end(), RenderPipelines.GUI);
     }
 
     private void drawCornerMask(Matrix4f matrix, float x, float y, int color) {
@@ -1667,14 +1654,10 @@ public class ClickGUI extends Screen {
     private void drawHueBar(Matrix4f matrix, float x, float y, float w, float h) {
         net.minecraft.client.render.Tessellator tessellator = net.minecraft.client.render.Tessellator.getInstance();
         net.minecraft.client.render.BufferBuilder builder = tessellator.begin(
-            net.minecraft.client.render.VertexFormat.DrawMode.QUADS, 
+            DrawMode.QUADS, 
             net.minecraft.client.render.VertexFormats.POSITION_COLOR
         );
 
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-        com.mojang.blaze3d.systems.RenderSystem.disableCull();
-        com.mojang.blaze3d.systems.RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
 
         Color[] rainbowColors = { Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED };
         float segH = h / 6.0f;
@@ -1692,9 +1675,7 @@ public class ClickGUI extends Screen {
             builder.vertex(matrix, x + w, y1, 0).color(cTop);
         }
 
-        net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(builder.end());
-        com.mojang.blaze3d.systems.RenderSystem.enableCull();
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+        cc.kamshi.renderers.impl.BufferRenderer.draw(builder.end(), RenderPipelines.GUI);
     }
 
     private void triggerSearch(String query, SpotifyManager.SearchFilter filter) {
@@ -1732,14 +1713,10 @@ public class ClickGUI extends Screen {
     private void drawSpinner(Matrix4f matrix, float cx, float cy, float radius, float thickness, float alpha) {
         net.minecraft.client.render.Tessellator tessellator = net.minecraft.client.render.Tessellator.getInstance();
         net.minecraft.client.render.BufferBuilder builder = tessellator.begin(
-            net.minecraft.client.render.VertexFormat.DrawMode.QUADS,
+            DrawMode.QUADS,
             net.minecraft.client.render.VertexFormats.POSITION_COLOR
         );
 
-        com.mojang.blaze3d.systems.RenderSystem.enableBlend();
-        com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
-        com.mojang.blaze3d.systems.RenderSystem.disableCull();
-        com.mojang.blaze3d.systems.RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
 
         float angle = (float) ((System.currentTimeMillis() % 1000) / 1000.0 * Math.PI * 2.0);
         int color = new Color(255, 255, 255, (int) (alpha * 255)).getRGB();
@@ -1764,8 +1741,6 @@ public class ClickGUI extends Screen {
             builder.vertex(matrix, cx + rOuter * cos1, cy + rOuter * sin1, 0).color(color);
         }
 
-        net.minecraft.client.render.BufferRenderer.drawWithGlobalProgram(builder.end());
-        com.mojang.blaze3d.systems.RenderSystem.enableCull();
-        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+        cc.kamshi.renderers.impl.BufferRenderer.draw(builder.end(), RenderPipelines.GUI);
     }
 }

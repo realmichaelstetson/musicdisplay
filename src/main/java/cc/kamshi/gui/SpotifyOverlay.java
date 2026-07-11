@@ -11,6 +11,7 @@ import cc.kamshi.renderers.impl.BuiltLiquidGlass;
 import cc.kamshi.renderers.impl.BuiltRectangle;
 import cc.kamshi.renderers.impl.BuiltTexture;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.texture.AbstractTexture;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.texture.NativeImage;
@@ -139,7 +140,7 @@ public final class SpotifyOverlay {
         }
         try (InputStream is = new FileInputStream(file)) {
             NativeImage nativeImage = NativeImage.read(is);
-            NativeImageBackedTexture texture = new NativeImageBackedTexture(nativeImage);
+            NativeImageBackedTexture texture = new NativeImageBackedTexture(() -> "spotify_art", nativeImage);
             String safePath = "spotify_art_" + Math.abs(path.hashCode());
             Identifier id = Identifier.of("kamshi", safePath);
             MinecraftClient.getInstance().getTextureManager().registerTexture(id, texture);
@@ -264,26 +265,20 @@ public final class SpotifyOverlay {
         renderBackground(matrix, 0f, 0f, WIDTH, expandedH, glassStyle, blurVal, bloomVal,8);
 
         // Render Album Artwork
-        int textureId = 0;
+        AbstractTexture artworkTexture = null;
         if (!artworkPath.isEmpty()) {
             Identifier artId = getOrCreateArtworkTexture(artworkPath);
             if (artId != null) {
-                var textureObj = client.getTextureManager().getTexture(artId);
-                if (textureObj != null) {
-                    textureId = textureObj.getGlId();
-                }
+                artworkTexture = client.getTextureManager().getTexture(artId);
             }
         }
-        if (textureId == 0) {
-            var textureObj = client.getTextureManager().getTexture(SPOTIFY_ICON);
-            if (textureObj != null) {
-                textureId = textureObj.getGlId();
-            }
+        if (artworkTexture == null) {
+            artworkTexture = client.getTextureManager().getTexture(SPOTIFY_ICON);
         }
 
         BuiltTexture artwork = Builder.texture()
             .size(new SizeState(32f, 32f))
-            .texture(0f, 0f, 1f, 1f, textureId)
+            .texture(0f, 0f, 1f, 1f, artworkTexture)
             .radius(4f)
             .smoothness(1f)
             .color(QuadColorState.WHITE)
@@ -419,26 +414,20 @@ public final class SpotifyOverlay {
 
             renderBackground(nextMatrix, 0f, nextY, WIDTH, 20f, glassStyle, blurVal, bloomVal,6);
 
-            int nextTexId = 0;
+            AbstractTexture nextArtworkTexture = null;
             if (nextTrack != null && !nextTrack.artworkPath().isEmpty()) {
                 Identifier nextArtId = getOrCreateArtworkTexture(nextTrack.artworkPath());
                 if (nextArtId != null) {
-                    var texObj = client.getTextureManager().getTexture(nextArtId);
-                    if (texObj != null) {
-                        nextTexId = texObj.getGlId();
-                    }
+                    nextArtworkTexture = client.getTextureManager().getTexture(nextArtId);
                 }
             }
-            if (nextTexId == 0) {
-                var textureObj = client.getTextureManager().getTexture(SPOTIFY_ICON);
-                if (textureObj != null) {
-                    nextTexId = textureObj.getGlId();
-                }
+            if (nextArtworkTexture == null) {
+                nextArtworkTexture = client.getTextureManager().getTexture(SPOTIFY_ICON);
             }
 
             BuiltTexture nextArtwork = Builder.texture()
                 .size(new SizeState(14f, 14f))
-                .texture(0f, 0f, 1f, 1f, nextTexId)
+                .texture(0f, 0f, 1f, 1f, nextArtworkTexture)
                 .radius(2f)
                 .smoothness(1f)
                 .color(QuadColorState.WHITE)
