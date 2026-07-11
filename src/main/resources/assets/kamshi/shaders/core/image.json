@@ -6,8 +6,8 @@
         "srcalpha": "one",
         "dstalpha": "1-srcalpha"
     },
-    "vertex": "mre:rounded_blur",
-    "fragment": "mre:rounded_blur",
+    "vertex": "kamshi:image",
+    "fragment": "kamshi:image",
     "attributes": [
         "Position",
         "Color",

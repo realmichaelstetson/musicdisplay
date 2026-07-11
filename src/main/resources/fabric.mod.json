@@ -1,18 +1,21 @@
 {
 	"schemaVersion": 1,
-	"id": "mre",
-	"version": "${version}",
-	"name": "Minecraft-Render-Enhancer-2D",
-	"description": "",
+	"id": "musicdisplay",
+	"version": "2.4",
+	"name": "Music Display",
+	"description": "Cool music display",
 	"authors": [
-		"sxmurxy"
+		"kamshi"
 	],
-	"license": "CC0-1.0",
-	"icon": "assets/mre/icon.png",
+	"contact": {
+		"homepage": "https://kamshi.dev"
+	},
+	"license": "GPL-3.0",
+	"icon": "assets/kamshi/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"cc.kamshi.MinecraftRenderEnhancer"
+			"cc.kamshi.MusicDisplay"
 		]
 	},
 	"mixins": [],

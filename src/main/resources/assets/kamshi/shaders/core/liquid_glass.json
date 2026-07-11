@@ -1,6 +1,6 @@
 {
-    "vertex": "mre:core/blur",
-    "fragment": "mre:core/blur",
+    "vertex": "kamshi:core/liquid_glass",
+    "fragment": "kamshi:core/liquid_glass",
     "samplers": [
         { "name": "Sampler0" }
     ],

@@ -34,7 +34,7 @@ public final class SpotifyOverlay {
     public static final float WIDTH = 175;
     public static final float HEIGHT = 44f;
 
-    private static final Identifier SPOTIFY_ICON = Identifier.of("mre", "spotify-white-icon.png");
+    private static final Identifier SPOTIFY_ICON = Identifier.of("kamshi", "spotify-white-icon.png");
 
     // Position & scaling target states (instantly updated by drag/scroll)
     private static float targetX = 15f;
@@ -141,7 +141,7 @@ public final class SpotifyOverlay {
             NativeImage nativeImage = NativeImage.read(is);
             NativeImageBackedTexture texture = new NativeImageBackedTexture(nativeImage);
             String safePath = "spotify_art_" + Math.abs(path.hashCode());
-            Identifier id = Identifier.of("mre", safePath);
+            Identifier id = Identifier.of("kamshi", safePath);
             MinecraftClient.getInstance().getTextureManager().registerTexture(id, texture);
             LOADED_ARTWORKS.put(path, id);
             return id;

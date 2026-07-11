@@ -20,9 +20,9 @@ import net.fabricmc.api.ModInitializer;
 
 import java.util.function.Supplier;
 
-public final class MinecraftRenderEnhancer implements ModInitializer {
+public final class MusicDisplay implements ModInitializer {
 
-	public static final String MOD_ID = "mre";
+	public static final String MOD_ID = "kamshi";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	private static final Supplier<MsdfFont> BIKO_FONT = Suppliers.memoize(() -> MsdfFont.builder().atlas("biko").data("biko").build());
 	
@@ -56,7 +56,7 @@ public final class MinecraftRenderEnhancer implements ModInitializer {
 		});
 
 		openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-			"key.mre.open_gui",
+			"key.kamshi.open_gui",
 			InputUtil.Type.KEYSYM,
 			GLFW.GLFW_KEY_RIGHT_SHIFT,
 			"MusicDisplay"

@@ -1,6 +1,6 @@
 {
-    "vertex": "mre:core/msdf_font",
-    "fragment": "mre:core/msdf_font",
+    "vertex": "kamshi:core/msdf_font",
+    "fragment": "kamshi:core/msdf_font",
     "samplers": [
         { "name": "Sampler0" }
     ],

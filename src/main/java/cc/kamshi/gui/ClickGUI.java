@@ -28,7 +28,7 @@ public class ClickGUI extends Screen {
     private static final int WIDTH = 230;
     private static final int HEIGHT = 140;
 
-    private static final Identifier SPOTIFY_ICON = Identifier.of("mre", "spotify-white-icon.png");
+    private static final Identifier SPOTIFY_ICON = Identifier.of("kamshi", "spotify-white-icon.png");
 
     private static final Supplier<MsdfFont> PRODUCT_SANS_BOLD = Suppliers.memoize(() -> 
         MsdfFont.builder()

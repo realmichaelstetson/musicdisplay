@@ -19,7 +19,7 @@ public final class ResourceProvider {
 	private static final Gson GSON = new Gson();
 	
 	public static Identifier getShaderIdentifier(String name) {
-		return Identifier.of("mre", "core/" + name);
+		return Identifier.of("kamshi", "core/" + name);
 	}
 
 	public static JsonObject toJson(Identifier identifier) {

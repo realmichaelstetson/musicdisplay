@@ -1,6 +1,6 @@
 {
-    "vertex": "mre:core/rectangle",
-    "fragment": "mre:core/spinner",
+    "vertex": "kamshi:core/rectangle",
+    "fragment": "kamshi:core/spinner",
     "samplers": [],
     "uniforms": [
         { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },

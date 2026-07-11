@@ -4,8 +4,8 @@
     "srcrgb": "srcalpha",
     "dstrgb": "1-srcalpha"
   },
-  "vertex": "mre:texture_blur",
-  "fragment": "mre:texture_blur",
+  "vertex": "kamshi:texture_blur",
+  "fragment": "kamshi:texture_blur",
   "attributes": [
     "Position",
     "Color",

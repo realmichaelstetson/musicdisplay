@@ -1,6 +1,6 @@
 #version 150
 
-#moj_import <mre:common.glsl>
+#moj_import <kamshi:common.glsl>
 
 in vec2 FragCoord;
 in vec2 TexCoord;

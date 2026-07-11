@@ -1,6 +1,6 @@
 {
-    "vertex": "mre:core/texture",
-    "fragment": "mre:core/texture",
+    "vertex": "kamshi:core/texture",
+    "fragment": "kamshi:core/texture",
     "samplers": [
         { "name": "Sampler0" }
     ],

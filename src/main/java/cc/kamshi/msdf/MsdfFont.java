@@ -124,12 +124,12 @@ public final class MsdfFont {
 		}
 		
 		public MsdfFont.Builder data(String dataFileName) {
-			this.dataIdentifer = Identifier.of("mre", "fonts/" + dataFileName + ".json");
+			this.dataIdentifer = Identifier.of("kamshi", "fonts/" + dataFileName + ".json");
 			return this;
 		}
 		
 		public MsdfFont.Builder atlas(String atlasFileName) {
-			this.atlasIdentifier = Identifier.of("mre", "fonts/" + atlasFileName + ".png");
+			this.atlasIdentifier = Identifier.of("kamshi", "fonts/" + atlasFileName + ".png");
 			return this;
 		}
 		

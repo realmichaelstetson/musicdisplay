@@ -1,9 +1,8 @@
 #version 150
 
-#moj_import <mre:common.glsl>
+#moj_import <kamshi:common.glsl>
 
-in vec3 Position; // POSITION_TEXTURE_COLOR vertex attributes
-in vec2 UV0;
+in vec3 Position; // POSITION_COLOR attributes
 in vec4 Color;
 
 uniform mat4 ModelViewMat;
@@ -14,9 +13,8 @@ out vec2 TexCoord;
 out vec4 FragColor;
 
 void main() {
-    FragCoord = rvertexcoord(gl_VertexID);
-    TexCoord = UV0;
-    FragColor = Color;
-
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
+    FragCoord = rvertexcoord(gl_VertexID);
+    TexCoord = gl_Position.xy * 0.5 + 0.5;
+    FragColor = Color;
 }

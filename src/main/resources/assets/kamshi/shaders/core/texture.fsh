@@ -1,6 +1,6 @@
 #version 150
 
-#moj_import <mre:common.glsl>
+#moj_import <kamshi:common.glsl>
 
 in vec2 FragCoord; // normalized fragment coord relative to the primitive
 in vec2 TexCoord;

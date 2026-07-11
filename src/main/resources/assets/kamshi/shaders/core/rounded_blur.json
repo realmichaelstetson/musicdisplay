@@ -6,8 +6,8 @@
         "srcalpha": "one",
         "dstalpha": "1-srcalpha"
     },
-    "vertex": "mre:rounded_rect",
-    "fragment": "mre:rounded_rect",
+    "vertex": "kamshi:rounded_blur",
+    "fragment": "kamshi:rounded_blur",
     "attributes": [
         "Position",
         "Color",
@@ -16,6 +16,8 @@
         "Color2",
         "ShadowProps"
     ],
-    "samplers": [],
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
     "uniforms": []
 }
