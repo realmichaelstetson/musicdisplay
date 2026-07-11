@@ -68,11 +68,13 @@ public record BuiltText(
 		
 		boolean hasRenderableGlyph = false;
 		if (this.text != null) {
-			for (int i = 0; i < this.text.length(); i++) {
-				if (this.font.hasGlyph((int) this.text.charAt(i))) {
+			for (int i = 0; i < this.text.length(); ) {
+				int cp = this.text.codePointAt(i);
+				if (this.font.hasGlyph(cp)) {
 					hasRenderableGlyph = true;
 					break;
 				}
+				i += Character.charCount(cp);
 			}
 		}
 		if (!hasRenderableGlyph) {

@@ -967,6 +967,7 @@ public class ClickGUI extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         float x = (this.width - WIDTH) / 2.0f;
         float y = (this.height - HEIGHT) / 2.0f;
+        double rawMouseX = mouseX;
 
         float scale = scaleAnimation.getValue() * guiSizeValue;
         float centerX = this.width / 2.0f;
@@ -1148,7 +1149,7 @@ public class ClickGUI extends Screen {
             // Slider Gui Size
             if (mouseX >= x + 154.0f && mouseX <= x + 203.0f && mouseY >= y + 70.0f && mouseY <= y + 77.0f) {
                 draggingGuiSize = true;
-                updateGuiSize(mouseX);
+                updateGuiSize(rawMouseX);
                 return true;
             }
 
@@ -1265,6 +1266,7 @@ public class ClickGUI extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        double rawMouseX = mouseX;
         float scale = scaleAnimation.getValue() * guiSizeValue;
         float centerX = this.width / 2.0f;
         float centerY = this.height / 2.0f;
@@ -1282,7 +1284,7 @@ public class ClickGUI extends Screen {
             return true;
         }
         if (draggingGuiSize) {
-            updateGuiSize(mouseX);
+            updateGuiSize(rawMouseX);
             return true;
         }
 
@@ -1480,9 +1482,29 @@ public class ClickGUI extends Screen {
         bloomValue = Math.round((pct * 10.0f) * 10.0f) / 10.0f;
     }
 
-    private void updateGuiSize(double mouseX) {
-        float x = (this.width - WIDTH) / 2.0f;
-        float pct = (float) ((mouseX - (x + 154.0f)) / 45.0f);
+    private void updateGuiSize(double mouseX_raw) {
+        float scaleAnim = scaleAnimation.getValue();
+        if (scaleAnim <= 0.0f) return;
+
+        float centerX = this.width / 2.0f;
+        float dx = (float) (mouseX_raw - centerX);
+        float C = dx / scaleAnim;
+
+        float a = 18.0f;
+        float b = 60.6f;
+        float c = 39.0f - C;
+
+        float discriminant = b * b - 4 * a * c;
+        float pct = 0.0f;
+        if (discriminant >= 0.0f) {
+            float r1 = (-b + (float) Math.sqrt(discriminant)) / (2.0f * a);
+            float r2 = (-b - (float) Math.sqrt(discriminant)) / (2.0f * a);
+            if (r1 >= -0.5f && r1 <= 1.5f) {
+                pct = r1;
+            } else {
+                pct = r2;
+            }
+        }
         pct = Math.max(0.0f, Math.min(1.0f, pct));
         guiSizeValue = Math.round((1.0f + pct * 0.4f) * 10.0f) / 10.0f;
     }

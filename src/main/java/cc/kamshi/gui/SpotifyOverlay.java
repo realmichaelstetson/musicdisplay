@@ -62,6 +62,30 @@ public final class SpotifyOverlay {
     // Progress Bar Animation
     private static final Animation progressAnimation = new Animation(Easing.EASE_IN_OUT_QUAD, 150L);
 
+    // Controls & Next Song Animations
+    private static final Animation controlsAnimation = new Animation(Easing.EASE_OUT_CUBIC, 200L);
+    private static final Animation nextSongAnimation = new Animation(Easing.EASE_OUT_CUBIC, 200L);
+    private static boolean draggingVolume = false;
+
+    public static float getCurrentHeight() {
+        float controlsProgress = controlsAnimation.getValue();
+        float expandedH = HEIGHT + 14f * controlsProgress;
+        float nextSongProgress = nextSongAnimation.getValue();
+        float totalLocalH = expandedH;
+        if (nextSongProgress > 0.0f) {
+            totalLocalH += 4f + 20f * nextSongProgress;
+        }
+        return totalLocalH;
+    }
+
+    private static final Supplier<MsdfFont> FLUID_FONT = Suppliers.memoize(() -> 
+        MsdfFont.builder()
+            .name("fluid-regular")
+            .atlas("msdf/fluid-regular")
+            .data("msdf/fluid-regular")
+            .build()
+    );
+
     private static final Supplier<MsdfFont> PRODUCT_SANS_BOLD = Suppliers.memoize(() -> 
         MsdfFont.builder()
             .name("productsans-bold")
@@ -75,6 +99,22 @@ public final class SpotifyOverlay {
             .name("productsans-regular")
             .atlas("msdf/productsans-regular")
             .data("msdf/productsans-regular")
+            .build()
+    );
+
+    private static final Supplier<MsdfFont> INTER_BOLD = Suppliers.memoize(() -> 
+        MsdfFont.builder()
+            .name("inter-bold")
+            .atlas("msdf/inter-bold")
+            .data("msdf/inter-bold")
+            .build()
+    );
+
+    private static final Supplier<MsdfFont> INTER_REGULAR = Suppliers.memoize(() -> 
+        MsdfFont.builder()
+            .name("inter-regular")
+            .atlas("msdf/inter-regular")
+            .data("msdf/inter-regular")
             .build()
     );
 
@@ -117,11 +157,6 @@ public final class SpotifyOverlay {
             return;
         }
 
-        SpotifyManager.MediaStatus status = SpotifyManager.getStatus();
-        if (status == null || !status.hasMedia()) {
-            return;
-        }
-
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.options.hudHidden) {
             return;
@@ -131,11 +166,54 @@ public final class SpotifyOverlay {
         float bloomVal = ClickGUI.getBloomValue();
         String glassStyle = ClickGUI.getGlassStyle();
 
-        // Ensure the overlay target position is clamped to the screen boundaries
+        SpotifyManager.MediaStatus status = SpotifyManager.getStatus();
+        boolean hasMedia = status != null && status.hasMedia();
+        boolean isConnected = SpotifyManager.isConfigured();
+
+        String titleStr;
+        String artistStr;
+        String timeStr;
+        float progressPct = 0.0f;
+        String artworkPath = "";
+
+        if (!isConnected) {
+            titleStr = "Spotify is not connected";
+            artistStr = "Setup inside ClickGUI";
+            timeStr = "0:00 / 0:00";
+            progressPct = 0.0f;
+        } else if (!hasMedia) {
+            titleStr = "Music is not playing";
+            artistStr = "Play a track on Spotify";
+            timeStr = "0:00 / 0:00";
+            progressPct = 0.0f;
+        } else {
+            titleStr = status.title();
+            artistStr = status.artist();
+            timeStr = formatTime(status.positionSeconds()) + " / " + formatTime(status.durationSeconds());
+            progressPct = status.progress();
+            artworkPath = status.artworkPath();
+        }
+
         float sw = client.getWindow().getScaledWidth();
         float sh = client.getWindow().getScaledHeight();
+
+        // Target height calculation based on enabled panels
+        controlsAnimation.run(ClickGUI.isShowControls() ? 1.0f : 0.0f);
+        float controlsProgress = controlsAnimation.getValue();
+        float expandedH = HEIGHT + 14f * controlsProgress;
+
+        var nextTrack = SpotifyManager.getNextTrack();
+        boolean shouldShowNext = ClickGUI.isShowNextSong() && nextTrack != null && nextTrack.hasMedia();
+        nextSongAnimation.run(shouldShowNext ? 1.0f : 0.0f);
+        float nextSongProgress = nextSongAnimation.getValue();
+
         float targetW = WIDTH * targetScale;
-        float targetH = HEIGHT * targetScale;
+        float totalLocalH = expandedH;
+        if (nextSongProgress > 0.0f) {
+            totalLocalH += 4f + 20f * nextSongProgress;
+        }
+        float targetH = totalLocalH * targetScale;
+
         targetX = Math.max(0f, Math.min(sw - targetW, targetX));
         targetY = Math.max(0f, Math.min(sh - targetH, targetY));
 
@@ -166,7 +244,7 @@ public final class SpotifyOverlay {
                 context.fill((int) vx, 0, (int) (vx + 1f), (int) sh, color);
             }
 
-            // Horizontal guidelines: Top (15f), Center (sh / 2f), Bottom (sh - 15f)
+            // Horizontal guidelines: Snap bounds
             float[] hLines = { 15f, sh / 2f, sh - 15f };
             for (float vy : hLines) {
                 boolean isSnapped = snapYActive && Math.abs(snappedYLine - vy) < 0.1f;
@@ -183,12 +261,12 @@ public final class SpotifyOverlay {
         Matrix4f matrix = context.getMatrices().peek().getPositionMatrix();
 
         // Render Background Panel at scaled origin (0f, 0f)
-        renderBackground(matrix, 0f, 0f, WIDTH, HEIGHT, glassStyle, blurVal, bloomVal);
+        renderBackground(matrix, 0f, 0f, WIDTH, expandedH, glassStyle, blurVal, bloomVal,8);
 
         // Render Album Artwork
         int textureId = 0;
-        if (!status.artworkPath().isEmpty()) {
-            Identifier artId = getOrCreateArtworkTexture(status.artworkPath());
+        if (!artworkPath.isEmpty()) {
+            Identifier artId = getOrCreateArtworkTexture(artworkPath);
             if (artId != null) {
                 var textureObj = client.getTextureManager().getTexture(artId);
                 if (textureObj != null) {
@@ -216,22 +294,31 @@ public final class SpotifyOverlay {
         MsdfFont fontBold = PRODUCT_SANS_BOLD.get();
         MsdfFont fontRegular = PRODUCT_SANS_REGULAR.get();
 
-        String title = status.title();
-        if (title.length() > 25) {
-            title = title.substring(0, 21) + "...";
+        // Dynamically shorten title if too long for the panel
+        String displayTitle = titleStr;
+        float maxTitleW = 165f - 45f;
+        if (fontBold.getWidth(displayTitle, 8f) > maxTitleW) {
+            while (!displayTitle.isEmpty() && fontBold.getWidth(displayTitle + "...", 8f) > maxTitleW) {
+                displayTitle = displayTitle.substring(0, displayTitle.length() - 1);
+            }
+            displayTitle += "...";
         }
-        drawText(matrix, fontBold, title, 8f, ClickGUI.getOverlayTitleColor(), 45f, 6f);
-
-        String artist = status.artist();
-        if (artist.length() > 28) {
-            artist = artist.substring(0, 25) + "...";
-        }
-        drawText(matrix, fontBold, artist, 7f, ClickGUI.getOverlayArtistColor(), 45f, 16f);
+        drawText(matrix, context, fontBold, displayTitle, 8f, ClickGUI.getOverlayTitleColor(), 45f, 6f);
 
         // Render Time (e.g. 0:21 / 2:15)
-        String timeStr = formatTime(status.positionSeconds()) + " / " + formatTime(status.durationSeconds());
         float rightX = 165f - fontRegular.getWidth(timeStr, 7f);
-        drawText(matrix, fontRegular, timeStr, 7f, ClickGUI.getOverlayTimeColor(), rightX, 16f);
+        drawText(matrix, context, fontRegular, timeStr, 7f, ClickGUI.getOverlayTimeColor(), rightX, 16f);
+
+        // Dynamically shorten artist to prevent overlap with the time string on the same row
+        String displayArtist = artistStr;
+        float maxArtistW = rightX - 45f - 4f; // 4f gap
+        if (fontBold.getWidth(displayArtist, 7f) > maxArtistW) {
+            while (!displayArtist.isEmpty() && fontBold.getWidth(displayArtist + "...", 7f) > maxArtistW) {
+                displayArtist = displayArtist.substring(0, displayArtist.length() - 1);
+            }
+            displayArtist += "...";
+        }
+        drawText(matrix, context, fontBold, displayArtist, 7f, ClickGUI.getOverlayArtistColor(), 45f, 16f);
 
         // Progress Bar
         float progressX = 44f;
@@ -247,7 +334,7 @@ public final class SpotifyOverlay {
             .build();
         trackBg.render(matrix, progressX, progressY);
 
-        progressAnimation.run(status.progress());
+        progressAnimation.run(progressPct);
         float activeWidth = progressW * progressAnimation.getValue();
         if (activeWidth > 0) {
             BuiltRectangle trackActive = Builder.rectangle()
@@ -259,6 +346,120 @@ public final class SpotifyOverlay {
             trackActive.render(matrix, progressX, progressY);
         }
 
+        // Render controls bar (scissored for height expansion animation)
+        if (controlsProgress > 0.0f) {
+            context.enableScissor(
+                (int) 0,
+                (int) HEIGHT,
+                (int) WIDTH,
+                (int) (HEIGHT + 15f * controlsProgress)
+            );
+
+            MsdfFont fontFluid = FLUID_FONT.get();
+            float controlY = HEIGHT -2f;
+
+            // Volume bar background
+            float volX = 18f;
+            float volY = controlY + 3f;
+            float volW = 32f;
+            float volH = 3f;
+            BuiltRectangle volBg = Builder.rectangle()
+                .size(new SizeState(volW, volH))
+                .radius(new QuadRadiusState(0.5f))
+                .smoothness(0.5f)
+                .color(new QuadColorState(new Color(255, 255, 255, 45)))
+                .build();
+            volBg.render(matrix, volX, volY);
+
+            int volumePercent = status != null ? status.volumePercent() : 50;
+            float activeVolW = volW * (volumePercent / 100.0f);
+            if (activeVolW > 0.0f) {
+                BuiltRectangle volActive = Builder.rectangle()
+                    .size(new SizeState(activeVolW, volH))
+                    .radius(new QuadRadiusState(0.5f))
+                    .smoothness(0.5f)
+                    .color(new QuadColorState(new Color(ClickGUI.getOverlayProgressBarColor(), true)))
+                    .build();
+                volActive.render(matrix, volX, volY);
+            }
+
+            // Volume Icon "E"
+            drawText(matrix, context, fontFluid, "E", 14f, 0xFFFFFFFF, 10f, controlY - 2f);
+
+            // Center controls: Prev ("H"), Play/Pause ("B"/"A"), Next ("G")
+            drawText(matrix, context, fontFluid, "H", 13f, 0xFFFFFFFF, 73f, controlY - 2f);
+            String playPauseGlyph = (status != null && status.isPlaying()) ? "A" : "B";
+            drawText(matrix, context, fontFluid, playPauseGlyph, 13f, 0xFFFFFFFF, 85.8f, controlY - 2f);
+            drawText(matrix, context, fontFluid, "G", 13f, 0xFFFFFFFF, 97.8f, controlY -2f);
+
+            // Right controls: Repeat ("I"), Shuffle ("C"), Like ("D")
+            int repeatColor = (status != null && !"off".equals(status.repeatState())) ? 0xFF2EB267 : 0xFFFFFFFF;
+            drawText(matrix, context, fontFluid, "I", 13f, repeatColor, 139f, controlY - 2f);
+
+            int shuffleColor = (status != null && status.shuffleState()) ? 0xFF2EB267 : 0xFFFFFFFF;
+            drawText(matrix, context, fontFluid, "C", 14f, shuffleColor, 151f, controlY -2.5f);
+
+            int likeColor = (status != null && status.liked()) ? 0xFF2EB267 : 0xFFFFFFFF;
+            drawText(matrix, context, fontFluid, "D", 13f, likeColor, 163f, controlY - 2f);
+
+            context.disableScissor();
+        }
+
+        // Show Next Song panel
+        if (nextSongProgress > 0.0f) {
+            float nextY = expandedH + 4f;
+
+            context.getMatrices().push();
+            float centerX = WIDTH / 2f;
+            float centerY = nextY + 10f;
+            context.getMatrices().translate(centerX, centerY, 0.0f);
+            context.getMatrices().scale(nextSongProgress, nextSongProgress, 1.0f);
+            context.getMatrices().translate(-centerX, -centerY, 0.0f);
+            Matrix4f nextMatrix = context.getMatrices().peek().getPositionMatrix();
+
+            renderBackground(nextMatrix, 0f, nextY, WIDTH, 20f, glassStyle, blurVal, bloomVal,6);
+
+            int nextTexId = 0;
+            if (nextTrack != null && !nextTrack.artworkPath().isEmpty()) {
+                Identifier nextArtId = getOrCreateArtworkTexture(nextTrack.artworkPath());
+                if (nextArtId != null) {
+                    var texObj = client.getTextureManager().getTexture(nextArtId);
+                    if (texObj != null) {
+                        nextTexId = texObj.getGlId();
+                    }
+                }
+            }
+            if (nextTexId == 0) {
+                var textureObj = client.getTextureManager().getTexture(SPOTIFY_ICON);
+                if (textureObj != null) {
+                    nextTexId = textureObj.getGlId();
+                }
+            }
+
+            BuiltTexture nextArtwork = Builder.texture()
+                .size(new SizeState(14f, 14f))
+                .texture(0f, 0f, 1f, 1f, nextTexId)
+                .radius(2f)
+                .smoothness(1f)
+                .color(QuadColorState.WHITE)
+                .build();
+            nextArtwork.render(nextMatrix, 8f, nextY + 3f);
+
+            String nextText = nextTrack.artist() + " - " + nextTrack.title();
+            if (nextText.length() > 38) {
+                nextText = nextText.substring(0, 35) + "...";
+            }
+            Builder.text()
+                .font(fontRegular)
+                .text(nextText)
+                .size(6.5f)
+                .color(0xFFFFFFFF)
+                .build()
+                .render(nextMatrix, 28f, nextY + 6f);
+
+            context.getMatrices().pop();
+        }
+
         context.getMatrices().pop();
     }
 
@@ -267,9 +468,66 @@ public final class SpotifyOverlay {
             float currentScale = scaleAnimation.getValue();
             float currentX = xAnimation.getValue();
             float currentY = yAnimation.getValue();
+
+            SpotifyManager.MediaStatus status = SpotifyManager.getStatus();
+            float controlsVal = controlsAnimation.getValue();
+            float nextSongVal = nextSongAnimation.getValue();
+            float expandedH = HEIGHT + 14f * controlsVal;
+            float totalH = expandedH;
+            if (nextSongVal > 0.0f) {
+                totalH += 4f + 20f * nextSongVal;
+            }
+
             float w = WIDTH * currentScale;
-            float h = HEIGHT * currentScale;
+            float h = totalH * currentScale;
+
             if (mouseX >= currentX && mouseX <= currentX + w && mouseY >= currentY && mouseY <= currentY + h) {
+                double localX = (mouseX - currentX) / currentScale;
+                double localY = (mouseY - currentY) / currentScale;
+
+                if (ClickGUI.isShowControls() && localY >= HEIGHT && localY <= HEIGHT + 18f) {
+                    // Check volume slider hit
+                    if (localX >= 18f && localX <= 50f) {
+                        float pct = (float) ((localX - 18f) / 32f);
+                        pct = Math.max(0f, Math.min(1f, pct));
+                        SpotifyManager.getInstance().setVolume((int) (pct * 100f));
+                        draggingVolume = true;
+                        return false;
+                    }
+                    // Shuffle: WIDTH / 2f - 40f => 154f in design or local coords WIDTH/2 - 40? 
+                    // Let's use exact layout positions
+                    // Prev (75f), Play/Pause (90f), Next (105f)
+                    if (localX >= 71f && localX <= 79f) {
+                        SpotifyManager.getInstance().previous();
+                        return true;
+                    }
+                    if (localX >= 83f && localX <= 94f) {
+                        SpotifyManager.getInstance().togglePlayPause();
+                        return true;
+                    }
+                    if (localX >= 95f && localX <= 103f) {
+                        SpotifyManager.getInstance().next();
+                        return true;
+                    }
+                    // Repeat (142f)
+                    if (localX >= 137f && localX <= 146f) {
+                        SpotifyManager.getInstance().toggleRepeat();
+                        return true;
+                    }
+                    // Shuffle (154f)
+                    if (localX >= 149f && localX <= 157f) {
+                        if (status != null) {
+                            SpotifyManager.getInstance().toggleShuffle(!status.shuffleState());
+                        }
+                        return true;
+                    }
+                    // Like (166f)
+                    if (localX >= 161f && localX <= 169f) {
+                        SpotifyManager.getInstance().toggleLike();
+                        return true;
+                    }
+                }
+
                 dragging = true;
                 // Compute offset using target positions to avoid double-transition errors
                 dragOffsetX = (float) (mouseX - targetX);
@@ -283,7 +541,7 @@ public final class SpotifyOverlay {
     public static void onMouseDragged(double mouseX, double mouseY, int button) {
         if (dragging && button == 0) {
             float w = WIDTH * targetScale;
-            float h = HEIGHT * targetScale;
+            float h = getCurrentHeight() * targetScale;
             
             MinecraftClient client = MinecraftClient.getInstance();
             float sw = client.getWindow().getScaledWidth();
@@ -345,12 +603,20 @@ public final class SpotifyOverlay {
                 xAnimation.setValue(targetX);
                 yAnimation.setValue(targetY);
             }
+        } else if (draggingVolume && button == 0) {
+            float currentScale = scaleAnimation.getValue();
+            float currentX = xAnimation.getValue();
+            double localX = (mouseX - currentX) / currentScale;
+            float pct = (float) ((localX - 18f) / 32f);
+            pct = Math.max(0f, Math.min(1f, pct));
+            SpotifyManager.getInstance().setVolume((int) (pct * 100f));
         }
     }
 
     public static void onMouseReleased(double mouseX, double mouseY, int button) {
         if (button == 0) {
             dragging = false;
+            draggingVolume = false;
             showSnapLines = false;
             snapXActive = false;
             snapYActive = false;
@@ -362,7 +628,7 @@ public final class SpotifyOverlay {
         float currentX = xAnimation.getValue();
         float currentY = yAnimation.getValue();
         float w = WIDTH * currentScale;
-        float h = HEIGHT * currentScale;
+        float h = getCurrentHeight() * currentScale;
         if (mouseX >= currentX && mouseX <= currentX + w && mouseY >= currentY && mouseY <= currentY + h) {
             float oldScale = targetScale;
             targetScale += (float) (amount * 0.08f);
@@ -371,28 +637,28 @@ public final class SpotifyOverlay {
 
             // Calculate center point using target values
             float centerX = targetX + (WIDTH * oldScale) / 2f;
-            float centerY = targetY + (HEIGHT * oldScale) / 2f;
+            float centerY = targetY + (getCurrentHeight() * oldScale) / 2f;
 
             // Adjust target top-left position to keep the center stationary
             targetX = centerX - (WIDTH * newScale) / 2f;
-            targetY = centerY - (HEIGHT * newScale) / 2f;
+            targetY = centerY - (getCurrentHeight() * newScale) / 2f;
             
             MinecraftClient client = MinecraftClient.getInstance();
             float sw = client.getWindow().getScaledWidth();
             float sh = client.getWindow().getScaledHeight();
             targetX = Math.max(0f, Math.min(sw - WIDTH * targetScale, targetX));
-            targetY = Math.max(0f, Math.min(sh - HEIGHT * targetScale, targetY));
+            targetY = Math.max(0f, Math.min(sh - getCurrentHeight() * targetScale, targetY));
             return false; // Consume mouse scroll
         }
         return true;
     }
 
-    private static void renderBackground(Matrix4f matrix, float x, float y, float w, float h, String glassStyle, float blurVal, float bloomVal) {
+    private static void renderBackground(Matrix4f matrix, float x, float y, float w, float h, String glassStyle, float blurVal, float bloomVal, float rounding) {
         Color bgColor = new Color(ClickGUI.getOverlayBgColor(), true);
         if ("Liquid".equalsIgnoreCase(glassStyle) || "LiquidGlass".equalsIgnoreCase(glassStyle)) {
             BuiltLiquidGlass liquid = Builder.liquidGlass()
                 .size(new SizeState(w, h))
-                .radius(new QuadRadiusState(8f))
+                .radius(new QuadRadiusState(rounding))
                 .blurRadius(blurVal)
                 .smoothness(bloomVal)
                 .color(new QuadColorState(bgColor))
@@ -401,7 +667,7 @@ public final class SpotifyOverlay {
         } else {
             BuiltBlur blur = Builder.blur()
                 .size(new SizeState(w, h))
-                .radius(new QuadRadiusState(8f))
+                .radius(new QuadRadiusState(rounding))
                 .blurRadius(blurVal)
                 .smoothness(bloomVal)
                 .color(new QuadColorState(bgColor))
@@ -410,15 +676,50 @@ public final class SpotifyOverlay {
         }
     }
 
-    private static void drawText(Matrix4f matrix, MsdfFont font, String text, float size, int color, float tx, float ty) {
+    private static void drawText(Matrix4f matrix, DrawContext context, MsdfFont font, String text, float size, int color, float tx, float ty) {
         if (text == null || text.isEmpty()) return;
-        Builder.text()
-            .font(font)
-            .text(text)
-            .size(size)
-            .color(color)
-            .build()
-            .render(matrix, tx, ty);
+
+        MsdfFont fallbackFont = font.getName().contains("bold") ? INTER_BOLD.get() : INTER_REGULAR.get();
+        float currentX = tx;
+
+        int runStart = 0;
+        MsdfFont runFont = null;
+
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            int count = Character.charCount(cp);
+            
+            MsdfFont activeFont = font.hasGlyph(cp) ? font : fallbackFont;
+            if (runFont == null) {
+                runFont = activeFont;
+                runStart = i;
+            } else if (activeFont != runFont) {
+                String runText = text.substring(runStart, i);
+                Builder.text()
+                    .font(runFont)
+                    .text(runText)
+                    .size(size)
+                    .color(color)
+                    .build()
+                    .render(matrix, currentX, ty);
+                currentX += runFont.getWidth(runText, size);
+                
+                runFont = activeFont;
+                runStart = i;
+            }
+            i += count;
+        }
+
+        if (runFont != null && runStart < text.length()) {
+            String runText = text.substring(runStart);
+            Builder.text()
+                .font(runFont)
+                .text(runText)
+                .size(size)
+                .color(color)
+                .build()
+                .render(matrix, currentX, ty);
+        }
     }
 
     private static String formatTime(double seconds) {

@@ -45,11 +45,14 @@ public final class MsdfFont {
 
 	public void applyGlyphs(Matrix4f matrix, VertexConsumer consumer, String text, float size, float thickness, float spacing, float x, float y, float z, int color) {
 		int prevChar = -1;
-		for (int i = 0; i < text.length(); i++) {
-			int _char = (int) text.charAt(i);
+		for (int i = 0; i < text.length(); ) {
+			int _char = text.codePointAt(i);
 			MsdfGlyph glyph = this.glyphs.get(_char);
 			
-			if (glyph == null) continue;
+			if (glyph == null) {
+				i += Character.charCount(_char);
+				continue;
+			}
 
 			Map<Integer, Float> kerning = this.kernings.get(prevChar);
 			if (kerning != null) {
@@ -58,18 +61,21 @@ public final class MsdfFont {
 
 			x += glyph.apply(matrix, consumer, size, x, y, z, color) + thickness + spacing;
 			prevChar = _char;
+			i += Character.charCount(_char);
 		}
 	}
 	
 	public float getWidth(String text, float size) {
 		int prevChar = -1;
 		float width = 0.0f;
-		for (int i = 0; i < text.length(); i++) {
-			int _char = (int) text.charAt(i);
+		for (int i = 0; i < text.length(); ) {
+			int _char = text.codePointAt(i);
 			MsdfGlyph glyph = this.glyphs.get(_char);
 			
-			if (glyph == null)
+			if (glyph == null) {
+				i += Character.charCount(_char);
 				continue;
+			}
 			
 			Map<Integer, Float> kerning = this.kernings.get(prevChar);
 			if (kerning != null) {
@@ -78,6 +84,7 @@ public final class MsdfFont {
 			
 			width += glyph.getWidth(size);
 			prevChar = _char;
+			i += Character.charCount(_char);
 		}
 		
 		return width;
