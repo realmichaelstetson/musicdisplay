@@ -1,0 +1,22 @@
+{
+  "blend": {
+    "func": "add",
+    "srcrgb": "srcalpha",
+    "dstrgb": "1-srcalpha"
+  },
+  "vertex": "mre:texture_blur",
+  "fragment": "mre:texture_blur",
+  "attributes": [
+    "Position",
+    "Color",
+    "UV0"
+  ],
+  "uniforms": [
+    { "name": "DynamicTransforms", "type": "int", "count": 1, "values": [ 0 ] },
+    { "name": "Projection", "type": "int", "count": 1, "values": [ 0 ] },
+    { "name": "CustomData", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 0.0 ] }
+  ],
+  "samplers": [
+    { "name": "Sampler0" }
+  ]
+}

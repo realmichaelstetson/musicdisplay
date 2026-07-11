@@ -1,0 +1,22 @@
+{
+    "blend": {
+        "func": "add",
+        "src_factor": "src_alpha",
+        "dst_factor": "one_minus_src_alpha"
+    },
+    "vertex": "mre:core/font",
+    "fragment": "mre:core/font",
+    "attributes": [
+        "Position",
+        "Color",
+        "UV0",
+        "CustomData",
+        "Color2",
+        "ShadowProps"
+    ],
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": [
+    ]
+}

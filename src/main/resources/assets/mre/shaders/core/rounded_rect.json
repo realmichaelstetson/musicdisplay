@@ -1,0 +1,21 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "srcalpha",
+        "dstrgb": "1-srcalpha",
+        "srcalpha": "one",
+        "dstalpha": "1-srcalpha"
+    },
+    "vertex": "mre:rounded_rect",
+    "fragment": "mre:rounded_rect",
+    "attributes": [
+        "Position",
+        "Color",
+        "UV0",
+        "CustomData",
+        "Color2",
+        "ShadowProps"
+    ],
+    "samplers": [],
+    "uniforms": []
+}

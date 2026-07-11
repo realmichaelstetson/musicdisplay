@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "mre",
+	"version": "${version}",
+	"name": "Minecraft-Render-Enhancer-2D",
+	"description": "",
+	"authors": [
+		"sxmurxy"
+	],
+	"license": "CC0-1.0",
+	"icon": "assets/mre/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"cc.kamshi.MinecraftRenderEnhancer"
+		]
+	},
+	"mixins": [],
+	"depends": {
+		"fabricloader": ">=0.16.10",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
