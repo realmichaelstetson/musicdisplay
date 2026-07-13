@@ -36,11 +36,34 @@ public class HaloRenderPipelines {
                     .build()
     );
 
+    public static final RenderPipeline ROUNDED_RECT_OUTLINE = RenderPipelines.register(
+            RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
+                    .withLocation(Identifier.fromNamespaceAndPath("halo", "pipeline/rounded_rect_outline"))
+                    .withVertexShader(Identifier.fromNamespaceAndPath("halo", "core/rounded_rect"))
+                    .withFragmentShader(Identifier.fromNamespaceAndPath("halo", "core/rounded_rect_outline"))
+                    .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                    .withCull(false)
+                    .withVertexFormat(ROUNDED_RECT_FORMAT, VertexFormat.Mode.QUADS)
+                    .build()
+    );
+
     public static final RenderPipeline ROUNDED_BLUR = RenderPipelines.register(
             RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
                     .withLocation(Identifier.fromNamespaceAndPath("halo", "pipeline/rounded_blur"))
                     .withVertexShader(Identifier.fromNamespaceAndPath("halo", "core/rounded_blur"))
                     .withFragmentShader(Identifier.fromNamespaceAndPath("halo", "core/rounded_blur"))
+                    .withSampler("Sampler0")
+                    .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                    .withCull(false)
+                    .withVertexFormat(ROUNDED_RECT_FORMAT, VertexFormat.Mode.QUADS)
+                    .build()
+    );
+
+    public static final RenderPipeline ROUNDED_BLUR_OUTLINE = RenderPipelines.register(
+            RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
+                    .withLocation(Identifier.fromNamespaceAndPath("halo", "pipeline/rounded_blur_outline"))
+                    .withVertexShader(Identifier.fromNamespaceAndPath("halo", "core/rounded_blur"))
+                    .withFragmentShader(Identifier.fromNamespaceAndPath("halo", "core/rounded_blur_outline"))
                     .withSampler("Sampler0")
                     .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                     .withCull(false)

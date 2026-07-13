@@ -104,6 +104,79 @@ public class CheckboxElement {
         }
     }
 
+    public static void drawCheckboxV2(
+            @Nullable GuiGraphicsExtractor graphics,
+            @Nullable Matrix3x2f pose,
+            @Nullable TextureSetup textureSetup,
+            @Nullable ScreenRectangle scissor,
+            String label, float lx, float ly, float width, float animProgress, int alpha, boolean disabled, float mouseX, float mouseY,
+            boolean extractPass
+    ) {
+        float trackW = 16.0f;
+        float trackH = 8.0f;
+        float rx = lx + width - trackW - 4.0f;
+        float ry = ly - trackH / 2.0f;
+
+        int textColor = disabled ? ARGB.color(255, 255, 255, 255) : ARGB.color(255, 244, 244, 245); // Zinc 500 or 100
+
+        if (extractPass) {
+            if (graphics != null && pose != null && textureSetup != null) {
+                // Switch track
+                int trackColor;
+                if (disabled) {
+                    trackColor = ARGB.color((int) (alpha * 0.35f), 30, 30, 30);
+                } else {
+                    int cFrom = ARGB.color((int) (alpha * 0.9f), 0, 0, 0); // Zinc 800
+                    int cTo = ARGB.color((int) (alpha * 0.9f), 29, 185, 84); // Spotify green
+                    trackColor = lerpColor(cFrom, cTo, animProgress);
+                }
+                
+                graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
+                        HaloRenderPipelines.ROUNDED_BLUR,
+                        textureSetup,
+                        pose,
+                        rx, ry, trackW, trackH,
+                        trackColor,
+                        4.0f,
+                        200.0f,
+                        0.0f,
+                        scissor
+                ));
+
+                // Text
+                var font = MsdfFontManager.getFont("productsans-semibold", 6f);
+                if (font != null) {
+                    graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
+                            font,
+                            label,
+                            new Matrix3x2f(pose),
+                            lx + 4.0f,
+                            ly - font.getHeight(6f) / 2f,
+                            6f,
+                            textColor,
+                            scissor
+                    ));
+                }
+                float knobSize = 6.0f;
+                float knobX = rx + 1.0f + animProgress * (trackW - knobSize - 2.0f);
+                float knobY = ry + 1.0f;
+                int knobColor = disabled ? ARGB.color(255, 80, 80, 80) : ARGB.color(255, 255, 255, 255);
+                graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
+                        HaloRenderPipelines.ROUNDED_BLUR,
+                        textureSetup,
+                        pose,
+                        knobX, knobY, knobSize, knobSize,
+                        knobColor,
+                        3.0f,
+                        0.0f,
+                        0.0f,
+                        scissor
+                ));
+
+            }
+        }
+    }
+
     private static int lerpColor(int from, int to, float factor) {
         int a1 = (from >> 24) & 0xFF;
         int r1 = (from >> 16) & 0xFF;

@@ -1,0 +1,23 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "srcalpha",
+        "dstrgb": "1-srcalpha",
+        "srcalpha": "one",
+        "dstalpha": "1-srcalpha"
+    },
+    "vertex": "halo:rounded_blur",
+    "fragment": "halo:rounded_blur_outline",
+    "attributes": [
+        "Position",
+        "Color",
+        "UV0",
+        "CustomData",
+        "Color2",
+        "ShadowProps"
+    ],
+    "samplers": [
+        { "name": "Sampler0" }
+    ],
+    "uniforms": []
+}

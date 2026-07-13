@@ -1,15 +1,13 @@
 package com.haloclient.client.gui.click;
 
+import com.haloclient.client.gui.click.elements.SliderElement;
 import com.haloclient.client.render.*;
 import com.haloclient.client.render.animation.Animation;
 import com.haloclient.client.render.animation.Easing;
 import com.haloclient.client.render.font.HaloFontRenderState;
 import com.haloclient.client.render.font.MsdfFont;
 import com.haloclient.client.render.font.MsdfFontManager;
-import com.haloclient.client.render.renderstates.BlurredLiquidGlassRoundedRectangleRenderState;
-import com.haloclient.client.render.renderstates.BlurredRoundedRectangleRenderState;
-import com.haloclient.client.render.renderstates.ImageRenderState;
-import com.haloclient.client.render.renderstates.RoundedRectangleRenderState;
+import com.haloclient.client.render.renderstates.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
@@ -85,6 +83,12 @@ public final class MusicDisplayOverlay {
     private static MsdfFont materialIconsFont;
     private static final Animation paintbrushBtnAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
     private static final Animation colorPickerPopupAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
+    private static boolean settingsPopupOpen = false;
+    private static final Animation settingsPopupAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
+    private static boolean draggingBlur = false;
+    private static boolean draggingBloom = false;
+    public static boolean independentNextSong = false;
+    private static final Animation independentNextSongCheckboxAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
 
     static {
         scaleAnimation.setStartValue(0.0f);
@@ -93,6 +97,8 @@ public final class MusicDisplayOverlay {
         nextSongScaleAnimation.setStartValue(0.0f);
         paintbrushBtnAnimation.setStartValue(0.0f);
         colorPickerPopupAnimation.setStartValue(0.0f);
+        settingsPopupAnimation.setStartValue(0.0f);
+        independentNextSongCheckboxAnimation.setStartValue(0.0f);
     }
 
     private MusicDisplayOverlay() {
@@ -184,8 +190,23 @@ public final class MusicDisplayOverlay {
         heightAnimation.run(showControls ? 58.0f : 44.0f);
         float currentHeight = heightAnimation.getValue();
 
+        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof com.haloclient.client.gui.click.ClickGUI;
+        if (!chatOpen) {
+            showPaintbrushButton = false;
+            if (colorPickerGuiInstance != null) {
+                colorPickerGuiInstance.colorPickerOpen = false;
+            }
+            settingsPopupOpen = false;
+        }
+        paintbrushBtnAnimation.run((chatOpen && showPaintbrushButton) ? 1.0f : 0.0f);
+        float btnScaleVal = paintbrushBtnAnimation.getValue();
+        settingsPopupAnimation.run((chatOpen && showPaintbrushButton && settingsPopupOpen) ? 1.0f : 0.0f);
+        float settingsPopupScaleVal = settingsPopupAnimation.getValue();
+
         float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
         float y = resolveY(Minecraft.getInstance().getWindow().getGuiScaledHeight());
+        float nextX = x;
+        float nextY = y + currentHeight + 4.0f;
 
         // Center of the overlay for scale pivot
         float centerX = x + WIDTH / 2.0f;
@@ -429,8 +450,6 @@ public final class MusicDisplayOverlay {
             float localMX = (float) ((currentGuiMX - pivotX) / totalScale + WIDTH / 2.0f);
             float localMY = (float) ((currentGuiMY - pivotY) / totalScale + heightAnimation.getValue() / 2.0f);
 
-            boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen;
-            
             // 1. Speaker Icon (E)
             boolean speakerHovered = chatOpen && localMX >= 6.0f && localMX <= 17.0f && localMY >= 40.0f && localMY <= 58.0f;
             int speakerColor = speakerHovered ? ARGB.color(controlAlpha, 255, 255, 255) : ARGB.color((int)(controlAlpha * 0.7f), 255, 255, 255);
@@ -578,10 +597,8 @@ public final class MusicDisplayOverlay {
         nextSongScaleAnimation.run(hasNextSong ? 1.0f : 0.0f);
         float nextSongScale = nextSongScaleAnimation.getValue();
 
-        if (nextSongScale > 0.001f) {
+        if (!independentNextSong && nextSongScale > 0.001f) {
             float nextHeight = 22.0f;
-            float nextX = x;
-            float nextY = y + currentHeight + 4.0f;
             float nextCenterX = nextX + WIDTH / 2.0f;
             float nextCenterY = nextY + nextHeight / 2.0f;
 
@@ -620,6 +637,8 @@ public final class MusicDisplayOverlay {
                         parentScissor
                 ));
             }
+
+
 
             ScreenRectangle nextBounds = (new ScreenRectangle((int) nextLocalX, (int) nextLocalY, (int) WIDTH, (int) nextHeight)).transformMaxBounds(nextPose);
             ScreenRectangle nextScissor = parentScissor != null ? parentScissor.intersection(nextBounds) : nextBounds;
@@ -679,10 +698,12 @@ public final class MusicDisplayOverlay {
             var screenPose = new Matrix3x2f(graphics.pose());
 
             float overlayCenterX = x + WIDTH / 2.0f;
-            float overlayCenterY = y + currentHeight / 2.0f;
+            float overlayCenterY = y + getTotalHeight() / 2.0f;
 
-            int vertLineCol = Math.abs(overlayCenterX - screenCenterX) < 0.01f ? ARGB.color(180, 29, 185, 84) : ARGB.color(100, 255, 255, 255);
-            int horizLineCol = Math.abs(overlayCenterY - screenCenterY) < 0.01f ? ARGB.color(180, 29, 185, 84) : ARGB.color(100, 255, 255, 255);
+            boolean isSnappedX = (relativeX == 0.5f);
+            boolean isSnappedY = (relativeY == 0.5f);
+            int vertLineCol = isSnappedX ? ARGB.color(180, 29, 185, 84) : ARGB.color(100, 255, 255, 255);
+            int horizLineCol = isSnappedY ? ARGB.color(180, 29, 185, 84) : ARGB.color(100, 255, 255, 255);
 
             // Vertical center line
             graphics.guiRenderState.addGuiElement(new RoundedRectangleRenderState(
@@ -705,18 +726,6 @@ public final class MusicDisplayOverlay {
             ));
         }
 
-        // Paintbrush button and color picker popup in ChatScreen
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen;
-        if (!chatOpen) {
-            showPaintbrushButton = false;
-            if (colorPickerGuiInstance != null) {
-                colorPickerGuiInstance.colorPickerOpen = false;
-            }
-        }
-        
-        paintbrushBtnAnimation.run((chatOpen && showPaintbrushButton) ? 1.0f : 0.0f);
-        float btnScaleVal = paintbrushBtnAnimation.getValue();
-
         ensureColorPickerInitialized();
         colorPickerPopupAnimation.run((chatOpen && showPaintbrushButton && colorPickerGuiInstance.colorPickerOpen) ? 1.0f : 0.0f);
         float popupScaleVal = colorPickerPopupAnimation.getValue();
@@ -728,10 +737,13 @@ public final class MusicDisplayOverlay {
 
         if (btnScaleVal > 0.001f) {
             float btnX = localX + WIDTH + 6.0f;
-            float btnY = localY + (currentHeight - 20.0f) / 2.0f;
-            float btnSize = 20.0f;
-            float btnCenterX = btnX + btnSize / 2.0f;
-            float btnCenterY = btnY + btnSize / 2.0f;
+            float brushBtnY = localY + (currentHeight - 17.0f) / 2.0f - 11.0f;
+            float settingsBtnY = localY + (currentHeight - 17.0f) / 2.0f + 11.0f;
+            float btnSize = 17.0f;
+            float brushBtnCenterX = btnX + btnSize / 2.0f;
+            float brushBtnCenterY = brushBtnY + btnSize / 2.0f;
+            float settingsBtnCenterX = btnX + btnSize / 2.0f;
+            float settingsBtnCenterY = settingsBtnY + btnSize / 2.0f;
             
             double rawMouseX = Minecraft.getInstance().mouseHandler.xpos();
             double rawMouseY = Minecraft.getInstance().mouseHandler.ypos();
@@ -741,22 +753,23 @@ public final class MusicDisplayOverlay {
             float localMX = (float) ((currentGuiMX - centerX) / totalScale);
             float localMY = (float) ((currentGuiMY - centerY) / totalScale);
 
-            boolean btnHovered = localMX >= btnX && localMX <= btnX + btnSize && localMY >= btnY && localMY <= btnY + btnSize;
-            int btnAlpha = btnHovered ? Math.min(255, bgA + 40) : bgA;
-            int btnColor = ARGB.color((int)(btnAlpha * btnScaleVal), bgR, bgG, bgB);
+            // Paintbrush button drawing
+            boolean brushBtnHovered = localMX >= btnX && localMX <= btnX + btnSize && localMY >= brushBtnY && localMY <= brushBtnY + btnSize;
+            int brushBtnAlpha = brushBtnHovered ? Math.min(255, bgA + 40) : bgA;
+            int brushBtnColor = ARGB.color((int)(brushBtnAlpha * btnScaleVal), bgR, bgG, bgB);
 
-            Matrix3x2f btnPose = new Matrix3x2f(pose);
-            btnPose.translate(btnCenterX, btnCenterY)
-                   .scale(btnScaleVal, btnScaleVal)
-                   .translate(-btnCenterX, -btnCenterY);
+            Matrix3x2f brushBtnPose = new Matrix3x2f(pose);
+            brushBtnPose.translate(brushBtnCenterX, brushBtnCenterY)
+                       .scale(btnScaleVal, btnScaleVal)
+                       .translate(-brushBtnCenterX, -brushBtnCenterY);
 
             if (backgroundType == BackgroundType.LIQUID_GLASS) {
                 graphics.guiRenderState.addGuiElement(new BlurredLiquidGlassRoundedRectangleRenderState(
                         HaloRenderPipelines.LIQUID_GLASS,
                         textureSetup,
-                        btnPose,
-                        btnX, btnY, btnSize, btnSize,
-                        btnColor,
+                        brushBtnPose,
+                        btnX, brushBtnY, btnSize, btnSize,
+                        brushBtnColor,
                         4.0f,
                         blurStrength,
                         bloomStrength,
@@ -766,9 +779,9 @@ public final class MusicDisplayOverlay {
                 graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
                         HaloRenderPipelines.ROUNDED_BLUR,
                         textureSetup,
-                        btnPose,
-                        btnX, btnY, btnSize, btnSize,
-                        btnColor,
+                        brushBtnPose,
+                        btnX, brushBtnY, btnSize, btnSize,
+                        brushBtnColor,
                         4.0f,
                         blurStrength,
                         bloomStrength,
@@ -783,9 +796,61 @@ public final class MusicDisplayOverlay {
                 graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
                         fluidFont,
                         "J",
-                        btnPose,
+                        brushBtnPose,
                         btnX + (btnSize - brushW) / 2.0f,
-                        btnY + (btnSize - brushH) / 2.0f,
+                        brushBtnY + (btnSize - brushH) / 2.0f,
+                        iconSize,
+                        ARGB.color((int)(255 * btnScaleVal), 255, 255, 255),
+                        parentScissor
+                ));
+            }
+
+            // Settings button drawing
+            boolean settingsBtnHovered = localMX >= btnX && localMX <= btnX + btnSize && localMY >= settingsBtnY && localMY <= settingsBtnY + btnSize;
+            int settingsBtnAlpha = settingsBtnHovered ? Math.min(255, bgA + 40) : bgA;
+            int settingsBtnColor = ARGB.color((int)(settingsBtnAlpha * btnScaleVal), bgR, bgG, bgB);
+
+            Matrix3x2f settingsBtnPose = new Matrix3x2f(pose);
+            settingsBtnPose.translate(settingsBtnCenterX, settingsBtnCenterY)
+                           .scale(btnScaleVal, btnScaleVal)
+                           .translate(-settingsBtnCenterX, -settingsBtnCenterY);
+
+            if (backgroundType == BackgroundType.LIQUID_GLASS) {
+                graphics.guiRenderState.addGuiElement(new BlurredLiquidGlassRoundedRectangleRenderState(
+                        HaloRenderPipelines.LIQUID_GLASS,
+                        textureSetup,
+                        settingsBtnPose,
+                        btnX, settingsBtnY, btnSize, btnSize,
+                        settingsBtnColor,
+                        4.0f,
+                        blurStrength,
+                        bloomStrength,
+                        parentScissor
+                ));
+            } else {
+                graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
+                        HaloRenderPipelines.ROUNDED_BLUR,
+                        textureSetup,
+                        settingsBtnPose,
+                        btnX, settingsBtnY, btnSize, btnSize,
+                        settingsBtnColor,
+                        4.0f,
+                        blurStrength,
+                        bloomStrength,
+                        parentScissor
+                ));
+            }
+
+            if (fluidFont != null) {
+                float iconSize = 18.0f;
+                float cogW = fluidFont.getWidth("K", iconSize);
+                float cogH = fluidFont.getHeight(iconSize);
+                graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
+                        fluidFont,
+                        "K",
+                        settingsBtnPose,
+                        btnX + (btnSize - cogW) / 2.0f,
+                        settingsBtnY + (btnSize - cogH) / 2.0f,
                         iconSize,
                         ARGB.color((int)(255 * btnScaleVal), 255, 255, 255),
                         parentScissor
@@ -857,6 +922,123 @@ public final class MusicDisplayOverlay {
                     colorPickerGuiInstance
             );
         }
+
+        if (settingsPopupScaleVal > 0.001f) {
+            boolean showBloom = (backgroundType != BackgroundType.LIQUID_GLASS);
+            float popupHeight = showBloom ? 51.0f : 35.0f;
+            float popupX = localX + WIDTH + 32.0f;
+            float popupY = localY + (currentHeight - popupHeight) / 2.0f;
+            float popupCenterX = popupX + 120.0f / 2.0f;
+            float popupCenterY = popupY + popupHeight / 2.0f;
+
+            Matrix3x2f popupPose = new Matrix3x2f(pose);
+            popupPose.translate(popupCenterX, popupCenterY)
+                     .scale(settingsPopupScaleVal, settingsPopupScaleVal)
+                     .translate(-popupCenterX, -popupCenterY);
+
+            int bgCol = ARGB.color((int) (bgA * settingsPopupScaleVal), bgR, bgG, bgB);
+
+            if (backgroundType == BackgroundType.LIQUID_GLASS) {
+                graphics.guiRenderState.addGuiElement(new BlurredLiquidGlassRoundedRectangleRenderState(
+                        HaloRenderPipelines.LIQUID_GLASS,
+                        textureSetup,
+                        popupPose,
+                        popupX, popupY, 110.0f, popupHeight,
+                        bgCol,
+                        6.0f,
+                        blurStrength,
+                        bloomStrength,
+                        parentScissor
+                ));
+            } else {
+                graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
+                        HaloRenderPipelines.ROUNDED_BLUR,
+                        textureSetup,
+                        popupPose,
+                        popupX, popupY, 110.0f, popupHeight,
+                        bgCol,
+                        6.0f,
+                        blurStrength,
+                        bloomStrength,
+                        parentScissor
+                ));
+            }
+
+            float pad = 8.0f;
+            float contentX = popupX + pad - 5;
+            float contentW = 120.0f - 2 * pad;
+            int textAlpha = (int)(255 * scale * settingsPopupScaleVal);
+
+            double rawMouseX = Minecraft.getInstance().mouseHandler.xpos();
+            double rawMouseY = Minecraft.getInstance().mouseHandler.ypos();
+            double winScale = Minecraft.getInstance().getWindow().getGuiScale();
+            double currentGuiMX = rawMouseX / winScale;
+            double currentGuiMY = rawMouseY / winScale;
+            float localMX = (float) ((currentGuiMX - centerX) / totalScale);
+            float localMY = (float) ((currentGuiMY - centerY) / totalScale);
+
+            // Draw Blur Slider
+            SliderElement.drawSliderV2(
+                    graphics,
+                    popupPose,
+                    textureSetup,
+                    parentScissor,
+                    "Blur",
+                    contentX,
+                    popupY + 10.0f,
+                    contentW,
+                    blurStrength,
+                    0.0f,
+                    30.0f,
+                    0,
+                    textAlpha,
+                    localMX,
+                    localMY,
+                    true
+            );
+
+            if (showBloom) {
+                // Draw Bloom Slider
+                SliderElement.drawSliderV2(
+                        graphics,
+                        popupPose,
+                        textureSetup,
+                        parentScissor,
+                        "Bloom",
+                        contentX,
+                        popupY + 25.0f,
+                        contentW,
+                        bloomStrength,
+                        0.0f,
+                        20.0f,
+                        0,
+                        textAlpha,
+                        localMX,
+                        localMY,
+                        true
+                );
+            }
+
+            // Draw Separate Next Checkbox
+            independentNextSongCheckboxAnimation.run(independentNextSong ? 1.0f : 0.0f);
+            float checkboxY = popupY + (showBloom ? 40.0f : 25.0f);
+            com.haloclient.client.gui.click.elements.CheckboxElement.drawCheckboxV2(
+                    graphics,
+                    popupPose,
+                    textureSetup,
+                    parentScissor,
+                    "Detach Next",
+                    contentX,
+                    checkboxY,
+                    contentW,
+                    independentNextSongCheckboxAnimation.getValue(),
+                    textAlpha,
+                    false,
+                    localMX,
+                    localMY,
+                    true
+            );
+        }
     }
 
 
@@ -864,7 +1046,7 @@ public final class MusicDisplayOverlay {
     /**
      * Trims text to fit within the given width using MSDF font metrics.
      */
-    private static String trimToWidthMsdf(MsdfFont font, String text, float width, float size) {
+    static String trimToWidthMsdf(MsdfFont font, String text, float width, float size) {
         if (font.getWidth(text, size) <= width) {
             return text;
         }
@@ -887,7 +1069,7 @@ public final class MusicDisplayOverlay {
         return Math.max(min, Math.min(max, value));
     }
 
-    private static ImageManager.CachedImage getAlbumArt(String path) {
+    static ImageManager.CachedImage getAlbumArt(String path) {
         if (path == null || path.isBlank()) {
             return null;
         }
@@ -923,15 +1105,9 @@ public final class MusicDisplayOverlay {
     private static float resolveX(int screenWidth) {
         float target = Float.isNaN(relativeX) ? (screenWidth - WIDTH) / 2.0f : relativeX * (screenWidth - WIDTH);
         if (dragging) {
-            float current = posXAnimation.getValue();
-            if (current == 0.0f) {
-                posXAnimation.setValue(target);
-                return target;
-            }
-            float newValue = current + (target - current) * 0.25f;
-            posXAnimation.setValue(newValue);
-            posXAnimation.setStartValue(newValue);
-            return newValue;
+            posXAnimation.setValue(target);
+            posXAnimation.setStartValue(target);
+            return target;
         }
         if (posXAnimation.getValue() == 0.0f && posXAnimation.getStartValue() == 0.0f) {
             posXAnimation.setStartValue(target);
@@ -940,19 +1116,24 @@ public final class MusicDisplayOverlay {
         return posXAnimation.getValue();
     }
 
-    private static float resolveY(int screenHeight) {
+    private static float getTotalHeight() {
         float currentHeight = heightAnimation.getValue();
-        float target = Float.isNaN(relativeY) ? 20.0f : relativeY * (screenHeight - currentHeight);
+        if (independentNextSong) {
+            return currentHeight;
+        }
+        SpotifyManager.NextTrack nextTrack = SpotifyManager.getNextTrack();
+        boolean hasNextSong = SpotifyManager.isConfigured() && showNextSong && nextTrack != null && nextTrack.hasMedia();
+        float nextSongScale = nextSongScaleAnimation.getValue();
+        return currentHeight + (22.0f + 4.0f) * nextSongScale;
+    }
+
+    private static float resolveY(int screenHeight) {
+        float totalHeight = getTotalHeight();
+        float target = Float.isNaN(relativeY) ? 20.0f : relativeY * (screenHeight - totalHeight);
         if (dragging) {
-            float current = posYAnimation.getValue();
-            if (current == 0.0f) {
-                posYAnimation.setValue(target);
-                return target;
-            }
-            float newValue = current + (target - current) * 0.25f;
-            posYAnimation.setValue(newValue);
-            posYAnimation.setStartValue(newValue);
-            return newValue;
+            posYAnimation.setValue(target);
+            posYAnimation.setStartValue(target);
+            return target;
         }
         if (posYAnimation.getValue() == 0.0f && posYAnimation.getStartValue() == 0.0f) {
             posYAnimation.setStartValue(target);
@@ -960,6 +1141,8 @@ public final class MusicDisplayOverlay {
         posYAnimation.run(target);
         return posYAnimation.getValue();
     }
+
+
 
     private static void loadAssets() {
         if (spotifyLogoImage == null) {
@@ -1029,7 +1212,7 @@ public final class MusicDisplayOverlay {
     public static boolean onMouseClicked(double mouseX, double mouseY, int button) {
         if (!visible) return false;
 
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen;
+        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof com.haloclient.client.gui.click.ClickGUI;
         float currentHeight = heightAnimation.getValue();
         float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
         float y = resolveY(Minecraft.getInstance().getWindow().getGuiScaledHeight());
@@ -1037,42 +1220,138 @@ public final class MusicDisplayOverlay {
         float scale = scaleAnimation.getValue();
         float currentScale = userScaleAnimation.getValue();
         float totalScale = scale * currentScale;
-        float currentW = WIDTH * totalScale;
-        float currentH = currentHeight * totalScale;
-        float currentX = x + (WIDTH - currentW) / 2.0f;
-        float currentY = y + (currentHeight - currentH) / 2.0f;
 
         float pivotX = x + WIDTH / 2.0f;
         float pivotY = y + currentHeight / 2.0f;
         float localMX = (float) ((mouseX - pivotX) / totalScale + WIDTH / 2.0f);
         float localMY = (float) ((mouseY - pivotY) / totalScale + currentHeight / 2.0f);
 
+        boolean hitMainCard = localMX >= 0 && localMX <= WIDTH && localMY >= 0 && localMY <= currentHeight;
+        SpotifyManager.NextTrack nextTrack = SpotifyManager.getNextTrack();
+        boolean hasNextSong = SpotifyManager.isConfigured() && showNextSong && nextTrack != null && nextTrack.hasMedia();
+        boolean hitNextSongCard = !independentNextSong && hasNextSong && nextSongScaleAnimation.getValue() > 0.001f &&
+                localMX >= 0 && localMX <= WIDTH && localMY >= currentHeight + 4.0f && localMY <= currentHeight + 4.0f + 22.0f;
+
         if (chatOpen && paintbrushBtnAnimation.getValue() > 0.5f) {
             float btnX = WIDTH + 6.0f;
-            float btnY = (currentHeight - 20.0f) / 2.0f;
-            float btnSize = 20.0f;
+            float brushBtnY = (currentHeight - 17.0f) / 2.0f - 11.0f;
+            float settingsBtnY = (currentHeight - 17.0f) / 2.0f + 11.0f;
+            float btnSize = 17.0f;
 
             float popupX = WIDTH + 32.0f;
             float popupY = (currentHeight - 128.0f) / 2.0f;
 
             ensureColorPickerInitialized();
 
+            boolean clickedSomething = false;
+
             if (colorPickerGuiInstance.colorPickerOpen && colorPickerPopupAnimation.getValue() > 0.5f) {
+                if (localMX >= popupX && localMX <= popupX + 120.0f && localMY >= popupY && localMY <= popupY + 128.0f) {
+                    clickedSomething = true;
+                }
                 if (handleColorPickerPopupClick(localMX, localMY, popupX, popupY, button)) {
                     return true;
                 }
             }
 
-            if (button == 0 && localMX >= btnX && localMX <= btnX + btnSize && localMY >= btnY && localMY <= btnY + btnSize) {
+            if (settingsPopupOpen && settingsPopupAnimation.getValue() > 0.5f) {
+                boolean showBloom = (backgroundType != BackgroundType.LIQUID_GLASS);
+                float settingsPopupHeight = showBloom ? 51.0f : 35.0f;
+                float settingsPopupY = (currentHeight - settingsPopupHeight) / 2.0f;
+                float pad = 8.0f;
+                float contentX = popupX + pad - 5;
+                float contentW = 120.0f - 2 * pad;
+
+                if (localMX >= popupX && localMX <= popupX + 110.0f && localMY >= settingsPopupY && localMY <= settingsPopupY + settingsPopupHeight) {
+                    clickedSomething = true;
+                }
+
+                float blurSy = settingsPopupY + 10.0f;
+                if (button == 0 && localMX >= contentX && localMX <= contentX + contentW && localMY >= blurSy - 6.5f && localMY <= blurSy + 6.5f) {
+                    draggingBlur = true;
+                    float labelWidth = 25.0f;
+                    float valueWidth = 15.0f;
+                    float trackX = contentX + labelWidth + 4.0f;
+                    float trackWidth = contentW - labelWidth - valueWidth - 12.0f;
+                    float normalized = Math.max(0.0f, Math.min(1.0f, (localMX - trackX) / trackWidth));
+                    blurStrength = normalized * 30.0f;
+                    return true;
+                }
+
+                float bloomSy = settingsPopupY + 25.0f;
+                if (showBloom && button == 0 && localMX >= contentX && localMX <= contentX + contentW && localMY >= bloomSy - 6.5f && localMY <= bloomSy + 6.5f) {
+                    draggingBloom = true;
+                    float labelWidth = 25.0f;
+                    float valueWidth = 15.0f;
+                    float trackX = contentX + labelWidth + 4.0f;
+                    float trackWidth = contentW - labelWidth - valueWidth - 12.0f;
+                    float normalized = Math.max(0.0f, Math.min(1.0f, (localMX - trackX) / trackWidth));
+                    bloomStrength = normalized * 20.0f;
+                    return true;
+                }
+
+                float checkboxY = settingsPopupY + (showBloom ? 40.0f : 25.0f);
+                if (button == 0 && localMX >= contentX && localMX <= contentX + contentW && localMY >= checkboxY - 6.5f && localMY <= checkboxY + 6.5f) {
+                    independentNextSong = !independentNextSong;
+                    if (independentNextSong) {
+                        int screenWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+                        int screenHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+                        float mainX = resolveX(screenWidth);
+                        float mainY = resolveY(screenHeight);
+                        DetachedNextElement.relativeX = Float.isNaN(relativeX) ? 0.5f : relativeX;
+                        float nextY = mainY + currentHeight + 4.0f;
+                        DetachedNextElement.relativeY = nextY / (screenHeight - DetachedNextElement.HEIGHT);
+                        
+                        DetachedNextElement.posXAnimation.setValue(mainX);
+                        DetachedNextElement.posXAnimation.setStartValue(mainX);
+                        DetachedNextElement.posYAnimation.setValue(nextY);
+                        DetachedNextElement.posYAnimation.setStartValue(nextY);
+                    }
+                    return true;
+                }
+
+                if (localMX >= popupX && localMX <= popupX + 120.0f && localMY >= settingsPopupY && localMY <= settingsPopupY + settingsPopupHeight) {
+                    return true;
+                }
+            }
+
+            if (localMX >= btnX && localMX <= btnX + btnSize && ((localMY >= brushBtnY && localMY <= brushBtnY + btnSize) || (localMY >= settingsBtnY && localMY <= settingsBtnY + btnSize))) {
+                clickedSomething = true;
+            }
+
+            if (button == 0 && localMX >= btnX && localMX <= btnX + btnSize && localMY >= brushBtnY && localMY <= brushBtnY + btnSize) {
                 colorPickerGuiInstance.colorPickerOpen = !colorPickerGuiInstance.colorPickerOpen;
                 if (colorPickerGuiInstance.colorPickerOpen) {
+                    settingsPopupOpen = false;
                     updateGuiHSB(colorPickerGuiInstance, getTargetColor(colorPickerGuiInstance.selectedTarget));
                 }
                 return true;
             }
+
+            if (button == 0 && localMX >= btnX && localMX <= btnX + btnSize && localMY >= settingsBtnY && localMY <= settingsBtnY + btnSize) {
+                settingsPopupOpen = !settingsPopupOpen;
+                if (settingsPopupOpen) {
+                    if (colorPickerGuiInstance != null) {
+                        colorPickerGuiInstance.colorPickerOpen = false;
+                    }
+                }
+                return true;
+            }
+
+            if (hitMainCard || hitNextSongCard) {
+                clickedSomething = true;
+            }
+
+            if (!clickedSomething) {
+                showPaintbrushButton = false;
+                settingsPopupOpen = false;
+                if (colorPickerGuiInstance != null) {
+                    colorPickerGuiInstance.colorPickerOpen = false;
+                }
+            }
         }
 
-        if (mouseX >= currentX && mouseX <= currentX + currentW && mouseY >= currentY && mouseY <= currentY + currentH) {
+        if (hitMainCard || hitNextSongCard) {
             if (chatOpen && button == 1) {
                 showPaintbrushButton = !showPaintbrushButton;
                 if (!showPaintbrushButton && colorPickerGuiInstance != null) {
@@ -1082,6 +1361,8 @@ public final class MusicDisplayOverlay {
             }
 
             if (button == 0) {
+
+
                 // If controls are shown, check if clicking controls row (localMY >= 40.0)
                 if (showControls && heightAnimation.getValue() > 44.0f && localMY >= 40.0f) {
                     SpotifyManager.MediaStatus status = SpotifyManager.getStatus();
@@ -1101,15 +1382,15 @@ public final class MusicDisplayOverlay {
 
                     // Middle playback controls
                     if (isConfigured) {
-                        if (localMX >= 88.0f- 5 && localMX <= 101.0f- 5 && localMY >= 40.0f && localMY <= 58.0f) {
+                        if (localMX >= 88.0f - 5 && localMX <= 101.0f - 5 && localMY >= 40.0f && localMY <= 58.0f) {
                             SpotifyManager.getInstance().togglePlayPause();
                             return true;
                         }
-                        if (localMX >= 73.0f- 5 && localMX <= 87.0f- 5 && localMY >= 40.0f && localMY <= 58.0f) {
+                        if (localMX >= 73.0f - 5 && localMX <= 87.0f - 5 && localMY >= 40.0f && localMY <= 58.0f) {
                             SpotifyManager.getInstance().previous();
                             return true;
                         }
-                        if (localMX >= 102.0f- 5 && localMX <= 116.0f- 5 && localMY >= 40.0f && localMY <= 58.0f) {
+                        if (localMX >= 102.0f - 5 && localMX <= 116.0f - 5 && localMY >= 40.0f && localMY <= 58.0f) {
                             SpotifyManager.getInstance().next();
                             return true;
                         }
@@ -1130,8 +1411,8 @@ public final class MusicDisplayOverlay {
                             return true;
                         }
                     }
-                    
-                    return true;
+
+                    // Clicked empty space in the controls area, drag instead
                 }
 
                 dragging = true;
@@ -1144,7 +1425,7 @@ public final class MusicDisplayOverlay {
     }
 
     public static boolean onMouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen;
+        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof com.haloclient.client.gui.click.ClickGUI;
         if (chatOpen && colorPickerGuiInstance != null && colorPickerGuiInstance.colorPickerOpen && colorPickerPopupAnimation.getValue() > 0.5f) {
             float currentHeight = heightAnimation.getValue();
             float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
@@ -1166,6 +1447,50 @@ public final class MusicDisplayOverlay {
             }
         }
 
+        if (chatOpen && settingsPopupOpen && settingsPopupAnimation.getValue() > 0.5f) {
+            float currentHeight = heightAnimation.getValue();
+            float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
+            float y = resolveY(Minecraft.getInstance().getWindow().getGuiScaledHeight());
+            float scale = scaleAnimation.getValue();
+            float currentScale = userScaleAnimation.getValue();
+            float totalScale = scale * currentScale;
+
+            float pivotX = x + WIDTH / 2.0f;
+            float pivotY = y + currentHeight / 2.0f;
+            float localMX = (float) ((mouseX - pivotX) / totalScale + WIDTH / 2.0f);
+            float localMY = (float) ((mouseY - pivotY) / totalScale + currentHeight / 2.0f);
+
+            boolean showBloom = (backgroundType != BackgroundType.LIQUID_GLASS);
+            float settingsPopupHeight = showBloom ? 51.0f : 35.0f;
+            float popupX = WIDTH + 32.0f;
+            float popupY = (currentHeight - settingsPopupHeight) / 2.0f;
+            float pad = 8.0f;
+            float contentX = popupX + pad - 5;
+            float contentW = 120.0f - 2 * pad;
+
+            if (draggingBlur && button == 0) {
+                float labelWidth = 25.0f;
+                float valueWidth = 15.0f;
+                float trackX = contentX + labelWidth + 4.0f;
+                float trackWidth = contentW - labelWidth - valueWidth - 12.0f;
+                float normalized = Math.max(0.0f, Math.min(1.0f, (localMX - trackX) / trackWidth));
+                blurStrength = normalized * 30.0f;
+                return true;
+            }
+
+            if (showBloom && draggingBloom && button == 0) {
+                float labelWidth = 25.0f;
+                float valueWidth = 15.0f;
+                float trackX = contentX + labelWidth + 4.0f;
+                float trackWidth = contentW - labelWidth - valueWidth - 12.0f;
+                float normalized = Math.max(0.0f, Math.min(1.0f, (localMX - trackX) / trackWidth));
+                bloomStrength = normalized * 20.0f;
+                return true;
+            }
+        }
+
+
+
         if (draggingVolume && button == 0) {
             float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
             float totalScale = scaleAnimation.getValue() * userScaleAnimation.getValue();
@@ -1182,14 +1507,16 @@ public final class MusicDisplayOverlay {
             float targetX = (float) (mouseX - dragOffsetX);
             float targetY = (float) (mouseY - dragOffsetY);
 
+            float totalHeight = getTotalHeight();
+
             float currentScale = userScaleAnimation.getValue();
             float currentW = WIDTH * currentScale;
-            float currentH = heightAnimation.getValue() * currentScale;
+            float currentH = totalHeight * currentScale;
 
             float minX = (currentW - WIDTH) / 2.0f;
             float maxX = screenWidth - (WIDTH + currentW) / 2.0f;
-            float minY = (currentH - heightAnimation.getValue()) / 2.0f;
-            float maxY = screenHeight - (heightAnimation.getValue() + currentH) / 2.0f;
+            float minY = (currentH - totalHeight) / 2.0f;
+            float maxY = screenHeight - (totalHeight + currentH) / 2.0f;
 
             if (minX > maxX) {
                 targetX = (screenWidth - WIDTH) / 2.0f;
@@ -1198,7 +1525,7 @@ public final class MusicDisplayOverlay {
             }
 
             if (minY > maxY) {
-                targetY = (screenHeight - heightAnimation.getValue()) / 2.0f;
+                targetY = (screenHeight - totalHeight) / 2.0f;
             } else {
                 targetY = clamp(targetY, minY, maxY);
             }
@@ -1206,9 +1533,9 @@ public final class MusicDisplayOverlay {
             float centerX = screenWidth / 2.0f;
             float centerY = screenHeight / 2.0f;
             float overlayCenterX = targetX + WIDTH / 2.0f;
-            float overlayCenterY = targetY + heightAnimation.getValue() / 2.0f;
+            float overlayCenterY = targetY + totalHeight / 2.0f;
 
-            float snapThreshold = 6.0f;
+            float snapThreshold = 10.0f;
 
             boolean snappedX = false;
             if (Math.abs(overlayCenterX - centerX) < snapThreshold) {
@@ -1217,12 +1544,12 @@ public final class MusicDisplayOverlay {
             }
             boolean snappedY = false;
             if (Math.abs(overlayCenterY - centerY) < snapThreshold) {
-                targetY = centerY - heightAnimation.getValue() / 2.0f;
+                targetY = centerY - totalHeight / 2.0f;
                 snappedY = true;
             }
 
             relativeX = snappedX ? 0.5f : (screenWidth > WIDTH ? targetX / (screenWidth - WIDTH) : 0.5f);
-            relativeY = snappedY ? 0.5f : (screenHeight > heightAnimation.getValue() ? targetY / (screenHeight - heightAnimation.getValue()) : 0.05f);
+            relativeY = snappedY ? 0.5f : (screenHeight > totalHeight ? targetY / (screenHeight - totalHeight) : 0.05f);
             return true;
         }
         return false;
@@ -1234,8 +1561,17 @@ public final class MusicDisplayOverlay {
             colorPickerGuiInstance.draggingHue = false;
             colorPickerGuiInstance.draggingCpAlpha = false;
         }
+
         if (draggingVolume && button == 0) {
             draggingVolume = false;
+            return true;
+        }
+        if (draggingBlur && button == 0) {
+            draggingBlur = false;
+            return true;
+        }
+        if (draggingBloom && button == 0) {
+            draggingBloom = false;
             return true;
         }
         if (dragging && button == 0) {
@@ -1247,6 +1583,7 @@ public final class MusicDisplayOverlay {
 
     public static boolean onMouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (!visible) return false;
+        
         float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
         float y = resolveY(Minecraft.getInstance().getWindow().getGuiScaledHeight());
 
@@ -1255,6 +1592,8 @@ public final class MusicDisplayOverlay {
         float currentH = heightAnimation.getValue() * currentScale;
         float currentX = x + (WIDTH - currentW) / 2.0f;
         float currentY = y + (heightAnimation.getValue() - currentH) / 2.0f;
+
+
 
         if (mouseX >= currentX && mouseX <= currentX + currentW && mouseY >= currentY && mouseY <= currentY + currentH) {
             targetUserScale = clamp(targetUserScale + (float) scrollY * 0.05f, 0.4f, 2.5f);

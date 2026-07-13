@@ -210,6 +210,7 @@ public class ClickGUI extends Screen {
 
         if (MusicDisplayOverlay.isVisible()) {
             MusicDisplayOverlay.render(graphics);
+            DetachedNextElement.render(graphics);
         }
 
         // Run scale animation
@@ -305,7 +306,7 @@ public class ClickGUI extends Screen {
         if (headerFontM != null) {
             graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
                     headerFontM,
-                    "Music Display v2.4",
+                    "Music Display v2.5",
                     new Matrix3x2f(pose),
                     x + 25.0f,
                     y + 14.5f - headerFontM.getHeight(10.0f) / 2.0f,
