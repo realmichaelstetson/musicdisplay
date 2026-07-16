@@ -120,7 +120,33 @@ namespace SMTCBridge
 
             try
             {
-                var session = _sessionManager.GetCurrentSession();
+                GlobalSystemMediaTransportControlsSession session = null;
+                try
+                {
+                    var sessions = _sessionManager.GetSessions();
+                    if (sessions != null)
+                    {
+                        foreach (var s in sessions)
+                        {
+                            var sInfo = s.GetPlaybackInfo();
+                            if (sInfo != null && sInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                            {
+                                session = s;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("Error enumerating sessions: " + ex.Message);
+                }
+
+                if (session == null)
+                {
+                    session = _sessionManager.GetCurrentSession();
+                }
+
                 if (session == null)
                 {
                     WriteJson(new
@@ -178,54 +204,80 @@ namespace SMTCBridge
                 string trackId = title + "|" + artist;
                 string finalArtworkPath = "";
 
+                if (trackId != _lastTrackId)
+                {
+                    try
+                    {
+                        if (File.Exists(_artworkSavePath))
+                        {
+                            File.Delete(_artworkSavePath);
+                        }
+                    }
+                    catch { }
+                }
+
                 if (props != null && props.Thumbnail != null)
                 {
-                    if (trackId != _lastTrackId)
+                    try
                     {
-                        // Track changed — save new artwork via temp file + atomic move
-                        string tempPath = _artworkSavePath + ".tmp";
-                        try
+                        var stream = props.Thumbnail.OpenReadAsync().GetAwaiter().GetResult();
+                        ulong streamSize = stream.Size;
+                        long fileLength = 0;
+                        if (File.Exists(_artworkSavePath))
                         {
-                            var stream = props.Thumbnail.OpenReadAsync().GetAwaiter().GetResult();
-                            using (var netStream = stream.AsStreamForRead())
-                            using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
-                            {
-                                netStream.CopyTo(fileStream);
-                            }
+                            fileLength = new FileInfo(_artworkSavePath).Length;
+                        }
 
-                            // Filter out browser icons (Chrome/Edge send their icon as thumbnail)
-                            // Real album art is typically > 10KB, browser icons are tiny
-                            var tempInfo = new FileInfo(tempPath);
-                            if (tempInfo.Length < 10000)
+                        // If the track changed, or the file doesn't exist, or the stream size is different, write/update the artwork
+                        if (trackId != _lastTrackId || fileLength == 0 || (long)streamSize != fileLength)
+                        {
+                            string tempPath = _artworkSavePath + ".tmp";
+                            try
                             {
-                                // Too small — likely a browser icon, not real artwork
-                                try { File.Delete(tempPath); } catch { }
-                                try { if (File.Exists(_artworkSavePath)) File.Delete(_artworkSavePath); } catch { }
-                                finalArtworkPath = "";
-                            }
-                            else
-                            {
-                                // Real artwork — atomic move
-                                if (File.Exists(_artworkSavePath))
+                                using (var netStream = stream.AsStreamForRead())
+                                using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
                                 {
-                                    File.Delete(_artworkSavePath);
+                                    netStream.CopyTo(fileStream);
                                 }
-                                File.Move(tempPath, _artworkSavePath);
-                                finalArtworkPath = _artworkSavePath;
+
+                                // Filter out browser icons (Chrome/Edge send their icon as thumbnail)
+                                // Real album art is typically > 10KB, browser icons are tiny
+                                var tempInfo = new FileInfo(tempPath);
+                                if (tempInfo.Length < 10000)
+                                {
+                                    // Too small — likely a browser icon, not real artwork
+                                    try { File.Delete(tempPath); } catch { }
+                                    try { if (File.Exists(_artworkSavePath)) File.Delete(_artworkSavePath); } catch { }
+                                    finalArtworkPath = "";
+                                }
+                                else
+                                {
+                                    // Real artwork — atomic move
+                                    if (File.Exists(_artworkSavePath))
+                                    {
+                                        File.Delete(_artworkSavePath);
+                                    }
+                                    File.Move(tempPath, _artworkSavePath);
+                                    finalArtworkPath = _artworkSavePath;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine("Art save error: " + ex.Message);
+                                // Cleanup temp
+                                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                                finalArtworkPath = File.Exists(_artworkSavePath) ? _artworkSavePath : "";
                             }
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            Console.Error.WriteLine("Art save error: " + ex.Message);
-                            // Cleanup temp
-                            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-                            // Use old artwork if it exists
+                            // Same track and same size — use existing artwork
                             finalArtworkPath = File.Exists(_artworkSavePath) ? _artworkSavePath : "";
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // Same track — use existing artwork
+                        Console.Error.WriteLine("Error reading thumbnail stream: " + ex.Message);
                         finalArtworkPath = File.Exists(_artworkSavePath) ? _artworkSavePath : "";
                     }
                 }

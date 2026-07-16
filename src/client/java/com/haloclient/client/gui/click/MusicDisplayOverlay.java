@@ -92,6 +92,8 @@ public final class MusicDisplayOverlay {
     private static NVGImageRenderer settingsIcon;
     private static final java.util.Map<String, ImageManager.CachedImage> artCache = new java.util.HashMap<>();
     private static final java.util.Map<String, Long> artLastModified = new java.util.HashMap<>();
+    private static String lastTrackId = "";
+    private static long lastTrackChangeTime = 0L;
     private static MsdfFont msdfTitleFont;
     private static MsdfFont msdfArtistFont;
     private static MsdfFont msdfTimeFont;
@@ -282,6 +284,14 @@ public final class MusicDisplayOverlay {
         boolean isConfigured = SpotifyManager.isConfigured();
         String title = isConfigured ? (status.hasMedia() ? status.title() : "No media playing") : "Spotify not connected";
         String artist = isConfigured ? (status.hasMedia() && !status.artist().isBlank() ? status.artist() : "Spotify API") : "Setup in ClickGUI";
+        
+        String currentTrackId = isConfigured && status.hasMedia() ? status.trackId() : "";
+        if (!currentTrackId.equals(lastTrackId)) {
+            lastTrackId = currentTrackId;
+            lastTrackChangeTime = System.currentTimeMillis();
+        }
+        boolean isRecentlyChanged = isConfigured && (System.currentTimeMillis() - lastTrackChangeTime < 2500L);
+
         ImageManager.CachedImage currentAlbumArt = isConfigured ? getAlbumArt(status.artworkPath()) : null;
         float progress = isConfigured ? status.progress() : 0.0f;
         float textX = localX + PADDING + COVER_SIZE + 7.0f;
@@ -429,6 +439,48 @@ public final class MusicDisplayOverlay {
                     ImageRenderState.ScaleMode.FILL,
                     currentAlbumArt.width(),
                     currentAlbumArt.height(),
+                    scissor
+            ));
+        } else if (isRecentlyChanged) {
+            long ms = com.haloclient.client.util.FrameClock.millis();
+            float circleX = localX + PADDING + COVER_SIZE / 2.0f;
+            float circleY = localY + PADDING + COVER_SIZE / 2.0f;
+            float circleRadius = 6.0f;
+            long relativeMs = ms % 6000L;
+
+            float rotationCycle = (relativeMs % 2000) / 2000.0f;
+            float baseAngle = rotationCycle * 360.0f;
+
+            float arcCycle = (relativeMs % 1500) / 1500.0f;
+            float headAngle, tailAngle;
+
+            if (arcCycle < 0.5f) {
+                float nt = arcCycle / 0.5f;
+                float easedHead = (float) (Math.sin(nt * Math.PI - Math.PI / 2.0) + 1.0) / 2.0f;
+                tailAngle = 0.0f;
+                headAngle = easedHead * 270.0f;
+            } else {
+                float nt = (arcCycle - 0.5f) / 0.5f;
+                float easedTail = (float) (Math.sin(nt * Math.PI - Math.PI / 2.0) + 1.0) / 2.0f;
+                tailAngle = easedTail * 270.0f;
+                headAngle = 270.0f;
+            }
+
+            float totalAngle = baseAngle + (float) Math.floor(relativeMs / 1500.0) * 270.0f + tailAngle;
+            float sweepAngle = headAngle - tailAngle;
+            if (sweepAngle < 15.0f) {
+                sweepAngle = 15.0f;
+            }
+
+            float quadSize = 16.0f;
+            graphics.guiRenderState.addGuiElement(new RoundedRectangleRenderState(
+                    HaloRenderPipelines.SPINNER,
+                    pose,
+                    circleX - quadSize / 2f, circleY - quadSize / 2f, quadSize, quadSize,
+                    ARGB.color((int) (255 * drawScale), 255, 255, 255), ARGB.color((int) (255 * drawScale), 255, 255, 255),
+                    circleRadius, 1.2f,
+                    0.0f, (float) Math.toRadians(totalAngle), (float) Math.toRadians(sweepAngle),
+                    0.0f,
                     scissor
             ));
         } else if (spotifyLogoImage != null) {
