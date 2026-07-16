@@ -56,7 +56,25 @@ public final class MusicDisplayOverlay {
         public String getName() { return name; }
     }
 
+    public enum MusicSource {
+        SPOTIFY("Spotify"),
+        WINDOWS("Windows");
+
+        private final String name;
+        MusicSource(String name) { this.name = name; }
+        public String getName() { return name; }
+    }
+
     private static BackgroundType backgroundType = BackgroundType.GAUSSIAN;
+    private static MusicSource musicSource = MusicSource.SPOTIFY;
+
+    public static MusicSource getMusicSource() {
+        return musicSource;
+    }
+
+    public static void setMusicSource(MusicSource value) {
+        musicSource = value;
+    }
     private static float blurStrength = DEFAULT_BLUR;
     private static float bloomStrength = DEFAULT_BLOOM;
 

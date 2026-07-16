@@ -50,6 +50,7 @@ public class HaloClient implements ClientModInitializer {
         moduleManager = new ModuleManager();
         com.haloclient.client.gui.click.SpotifyManager.getInstance().load();
         com.haloclient.client.gui.click.SpotifyManager.getInstance().startPolling();
+        com.haloclient.client.gui.click.WindowsMediaManager.getInstance().start();
 
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openClickGuiKey.consumeClick()) {
@@ -62,6 +63,9 @@ public class HaloClient implements ClientModInitializer {
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             try {
                 com.haloclient.client.gui.click.SpotifyManager.getInstance().cleanOldArtworkCache();
+            } catch (Throwable ignored) {}
+            try {
+                com.haloclient.client.gui.click.WindowsMediaManager.getInstance().stop();
             } catch (Throwable ignored) {}
         });
     }

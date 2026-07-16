@@ -132,6 +132,8 @@ public class ClickGUI extends Screen {
     private final Animation nextSongToggleAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
     public boolean bgStyleComboOpen = false;
     public final Animation bgStyleComboAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
+    public boolean musicSourceComboOpen = false;
+    public final Animation musicSourceComboAnimation = new Animation(Easing.EASE_OUT_CUBIC, 150);
     public float animatedCpSat = 0.0f;
     public float animatedCpBri = 1.0f;
     private boolean closing;
@@ -146,6 +148,7 @@ public class ClickGUI extends Screen {
         controlsToggleAnimation.setStartValue(0.0f);
         nextSongToggleAnimation.setStartValue(0.0f);
         bgStyleComboAnimation.setStartValue(0.0f);
+        musicSourceComboAnimation.setStartValue(0.0f);
         filterIndicatorX.setStartValue(0.0f);
         filterIndicatorWidth.setStartValue(0.0f);
     }
@@ -171,6 +174,7 @@ public class ClickGUI extends Screen {
         selectedTarget = ColorTarget.BACKGROUND;
         comboboxOpen = false;
         bgStyleComboOpen = false;
+        musicSourceComboOpen = false;
         
         // Sync with overlay background color
         colorPickerColor = MusicDisplayOverlay.backgroundColor;
@@ -183,6 +187,8 @@ public class ClickGUI extends Screen {
         comboboxAnimation.reset();
         bgStyleComboAnimation.setStartValue(0.0f);
         bgStyleComboAnimation.reset();
+        musicSourceComboAnimation.setStartValue(0.0f);
+        musicSourceComboAnimation.reset();
         selectorCircleAnimation.setStartValue(0.0f);
         selectorCircleAnimation.reset();
         enabledToggleAnimation.setStartValue(MusicDisplayOverlay.isOpened() ? 1.0f : 0.0f);
@@ -231,6 +237,7 @@ public class ClickGUI extends Screen {
         // Run combobox expand/collapse animation
         comboboxAnimation.run(comboboxOpen ? 1.0f : 0.0f);
         bgStyleComboAnimation.run(bgStyleComboOpen ? 1.0f : 0.0f);
+        musicSourceComboAnimation.run(musicSourceComboOpen ? 1.0f : 0.0f);
 
         // Run selector circle dynamic scale animation
         selectorCircleAnimation.run(draggingSB ? 1.0f : 0.0f);
@@ -351,12 +358,12 @@ public class ClickGUI extends Screen {
             float cW = 103.0f;
             float lCX = x + PADDING;
             
-            // 1. Extract left section card ("Main" + checkbox + show controls)
+            // 1. Extract left section card ("Main" + checkbox + show controls + music source)
             graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
                     HaloRenderPipelines.ROUNDED_BLUR,
                     textureSetup,
                     pose,
-                    lCX, y + 27.5f, cW, 52.0f,
+                    lCX, y + 27.5f, cW, 65.0f,
                     ARGB.color(165, 0, 0, 0),
                     3.0f,
                     200.0f,
@@ -364,13 +371,28 @@ public class ClickGUI extends Screen {
                     scissor
             ));
 
-            // Extract checkbox hover state (must be drawn behind the switch track)
-
+            // Extract hover highlights for individual controls inside the unified left card
+             if (isHovered(mouseX, mouseY, lCX, y + 86.0f - 6.5f, cW, 13.0f)) {
+                graphics.guiRenderState.addGuiElement(new BlurredRoundedRectangleRenderState(
+                        HaloRenderPipelines.ROUNDED_BLUR,
+                        textureSetup,
+                        pose,
+                        lCX, y + 86.0f - 6.5f, cW, 13.0f,
+                        ARGB.color(175, 0, 0, 0),
+                        3.0f,
+                        200.0f,
+                        0.0f,
+                        scissor
+                ));
+            }
 
             // Extract checkbox track
             com.haloclient.client.gui.click.elements.CheckboxElement.drawCheckbox(graphics, pose, textureSetup, scissor, "Enabled", lCX, y + 47.0f, cW, enabledToggleAnimation.getValue(), alphaScale, false, mouseX, mouseY, true);
             com.haloclient.client.gui.click.elements.CheckboxElement.drawCheckbox(graphics, pose, textureSetup, scissor, "Show Controls", lCX, y + 60.0f, cW, controlsToggleAnimation.getValue(), alphaScale, false, mouseX, mouseY, true);
             com.haloclient.client.gui.click.elements.CheckboxElement.drawCheckbox(graphics, pose, textureSetup, scissor, "Show Next Song", lCX, y + 73.0f, cW, nextSongToggleAnimation.getValue(), alphaScale, false, mouseX, mouseY, true);
+
+            // Draw Music Source ComboBox
+            com.haloclient.client.gui.click.elements.GlassStyleComboBoxElementV2.drawMusicSourceComboBox(graphics, pose, textureSetup, scissor, lCX, cW, y, alphaScale, mouseX, mouseY, true, this);
 
             // 2. Extract right section card ("Settings" + 3 sliders + color picker)
             float colWidth = 103.0f;
@@ -1254,6 +1276,42 @@ public class ClickGUI extends Screen {
             float colWidth = 103.0f;
             float leftColX = x + PADDING - 10;
             float rightColX = x + WIDTH - PADDING - colWidth;
+            float lCX = x + PADDING;
+            float cW = 103.0f;
+
+            // Handle music source combo dropdown click first
+            if (musicSourceComboOpen) {
+                float styleLy = y + 86.0f;
+                float styleCardH = 13.0f;
+                float styleCardY = styleLy - styleCardH / 2.0f;
+                float styleRectW = 45.0f;
+                float styleRectX = lCX + cW - styleRectW - 4.0f;
+                float styleListY = styleCardY + styleCardH + 1.0f;
+                float styleOptionH = 12.0f;
+
+                for (int i = 0; i < MusicDisplayOverlay.MusicSource.values().length; i++) {
+                    float optY = styleListY + i * styleOptionH;
+                    if (isHovered(mouseX, mouseY, styleRectX, optY, styleRectW, styleOptionH)) {
+                        MusicDisplayOverlay.setMusicSource(MusicDisplayOverlay.MusicSource.values()[i]);
+                        musicSourceComboOpen = false;
+                        return true;
+                    }
+                }
+                // Clicked outside dropdown options - close it
+                musicSourceComboOpen = false;
+                return true;
+            }
+
+            // Music Source Combo Box click
+            float musicSourceLy = y + 86.0f;
+            float musicSourceCardH = 13.0f;
+            float musicSourceCardY = musicSourceLy - musicSourceCardH / 2.0f;
+            float musicSourceRectW = 45.0f;
+            float musicSourceRectX = lCX + cW - musicSourceRectW - 4.0f;
+            if (isHovered(mouseX, mouseY, musicSourceRectX, musicSourceCardY, musicSourceRectW, musicSourceCardH)) {
+                musicSourceComboOpen = !musicSourceComboOpen;
+                return true;
+            }
 
             // Handle style combo dropdown click first
             if (bgStyleComboOpen) {

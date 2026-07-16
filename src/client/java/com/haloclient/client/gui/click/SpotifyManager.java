@@ -115,14 +115,23 @@ public final class SpotifyManager {
     }
 
     public static MediaStatus getStatus() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            return WindowsMediaManager.getStatus();
+        }
         return INSTANCE.currentStatus;
     }
 
     public static NextTrack getNextTrack() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            return NextTrack.EMPTY; // Windows SMTC doesn't expose next track
+        }
         return INSTANCE.nextTrack;
     }
 
     public static boolean isConfigured() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            return WindowsMediaManager.isConfigured();
+        }
         return INSTANCE.authorized && !INSTANCE.clientId.isBlank() && !INSTANCE.clientSecret.isBlank();
     }
 
@@ -1137,6 +1146,10 @@ public final class SpotifyManager {
     private int pendingVolumeTarget = -1;
 
     public synchronized void setVolume(int percent) {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            WindowsMediaManager.getInstance().setVolume(percent);
+            return;
+        }
         if (!authorized || accessToken.isBlank()) return;
         
         // Immediately update local status state to ensure rendering is fluid/lag-free
@@ -1176,6 +1189,10 @@ public final class SpotifyManager {
     }
 
     public synchronized void togglePlayPause() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            WindowsMediaManager.getInstance().togglePlayPause();
+            return;
+        }
         if (!authorized || accessToken.isBlank()) return;
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
@@ -1206,6 +1223,10 @@ public final class SpotifyManager {
     }
 
     public synchronized void next() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            WindowsMediaManager.getInstance().next();
+            return;
+        }
         if (!authorized || accessToken.isBlank()) return;
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
@@ -1225,6 +1246,10 @@ public final class SpotifyManager {
     }
 
     public synchronized void previous() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            WindowsMediaManager.getInstance().previous();
+            return;
+        }
         if (!authorized || accessToken.isBlank()) return;
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
@@ -1244,6 +1269,9 @@ public final class SpotifyManager {
     }
 
     public synchronized void toggleShuffle(boolean state) {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            return; // Not supported by Windows SMTC
+        }
         if (!authorized || accessToken.isBlank()) return;
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
@@ -1272,6 +1300,9 @@ public final class SpotifyManager {
     }
 
     public synchronized void toggleLike() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            return; // Not supported by Windows SMTC
+        }
         if (currentStatus == MediaStatus.EMPTY) return;
         String trackId = currentStatus.trackId();
         if (trackId == null || trackId.isEmpty()) return;
@@ -1289,6 +1320,9 @@ public final class SpotifyManager {
     }
 
     public synchronized void toggleRepeat() {
+        if (MusicDisplayOverlay.getMusicSource() == MusicDisplayOverlay.MusicSource.WINDOWS) {
+            return; // Not supported by Windows SMTC
+        }
         if (!authorized || accessToken.isBlank()) return;
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
