@@ -423,7 +423,7 @@ public final class SpotifyManager {
                     .GET()
                     .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = sendRequest(client, request, "Failed to poll player status.");
             int code = response.statusCode();
 
             if (code == 204) {
@@ -1086,12 +1086,12 @@ public final class SpotifyManager {
             HttpClient client = HttpClient.newHttpClient();
             String jsonBody = "{\"uris\":[\"spotify:track:" + trackId + "\"]}";
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.spotify.com/v1/me/player/play"))
-                    .header("Authorization", "Bearer " + accessToken)
-                    .header("Content-Type", "application/json")
-                    .PUT(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                     .uri(URI.create("https://api.spotify.com/v1/me/player/play"))
+                     .header("Authorization", "Bearer " + accessToken)
+                     .header("Content-Type", "application/json")
+                     .PUT(HttpRequest.BodyPublishers.ofString(jsonBody))
+                     .build();
+            HttpResponse<String> response = sendRequest(client, request, "Failed to play track.");
             System.out.println("[SpotifyManager] playTrack HTTP " + response.statusCode() + ": " + response.body());
         } catch (Exception e) {
             e.printStackTrace();
@@ -1107,12 +1107,12 @@ public final class SpotifyManager {
             HttpClient client = HttpClient.newHttpClient();
             String jsonBody = "{\"context_uri\":\"spotify:playlist:" + playlistId + "\"}";
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.spotify.com/v1/me/player/play"))
-                    .header("Authorization", "Bearer " + accessToken)
-                    .header("Content-Type", "application/json")
-                    .PUT(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                     .uri(URI.create("https://api.spotify.com/v1/me/player/play"))
+                     .header("Authorization", "Bearer " + accessToken)
+                     .header("Content-Type", "application/json")
+                     .PUT(HttpRequest.BodyPublishers.ofString(jsonBody))
+                     .build();
+            HttpResponse<String> response = sendRequest(client, request, "Failed to play playlist.");
             System.out.println("[SpotifyManager] playPlaylist HTTP " + response.statusCode() + ": " + response.body());
         } catch (Exception e) {
             e.printStackTrace();
@@ -1127,15 +1127,15 @@ public final class SpotifyManager {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.spotify.com/v1/me/tracks?ids=" + trackId))
-                    .header("Authorization", "Bearer " + accessToken);
+                     .uri(URI.create("https://api.spotify.com/v1/me/tracks?ids=" + trackId))
+                     .header("Authorization", "Bearer " + accessToken);
             
             if (like) {
                 builder.PUT(HttpRequest.BodyPublishers.noBody());
             } else {
                 builder.DELETE();
             }
-            HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = sendRequest(client, builder.build(), like ? "Failed to save track." : "Failed to remove track.");
             System.out.println("[SpotifyManager] likeTrack (" + (like ? "LIKE" : "UNLIKE") + ") HTTP " + response.statusCode() + ": " + response.body());
         } catch (Exception e) {
             e.printStackTrace();
@@ -1180,7 +1180,7 @@ public final class SpotifyManager {
                             .header("Authorization", "Bearer " + accessToken)
                             .PUT(HttpRequest.BodyPublishers.noBody())
                             .build();
-                    client.send(request, HttpResponse.BodyHandlers.discarding());
+                    sendRequest(client, request, "Failed to set volume.");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -1206,7 +1206,7 @@ public final class SpotifyManager {
                     .header("Authorization", "Bearer " + accessToken)
                     .PUT(HttpRequest.BodyPublishers.noBody())
                     .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
+            sendRequest(client, request, play ? "Failed to resume playback." : "Failed to pause playback.");
             if (currentStatus != MediaStatus.EMPTY) {
                 currentStatus = new MediaStatus(
                         currentStatus.title(), currentStatus.artist(),
@@ -1238,7 +1238,7 @@ public final class SpotifyManager {
                     .header("Authorization", "Bearer " + accessToken)
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
+            sendRequest(client, request, "Failed to skip to next track.");
             poll();
         } catch (Exception e) {
             e.printStackTrace();
@@ -1261,7 +1261,7 @@ public final class SpotifyManager {
                     .header("Authorization", "Bearer " + accessToken)
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
+            sendRequest(client, request, "Failed to skip to previous track.");
             poll();
         } catch (Exception e) {
             e.printStackTrace();
@@ -1283,7 +1283,7 @@ public final class SpotifyManager {
                     .header("Authorization", "Bearer " + accessToken)
                     .PUT(HttpRequest.BodyPublishers.noBody())
                     .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
+            sendRequest(client, request, "Failed to toggle shuffle.");
             if (currentStatus != MediaStatus.EMPTY) {
                 currentStatus = new MediaStatus(
                         currentStatus.title(), currentStatus.artist(),
@@ -1343,7 +1343,7 @@ public final class SpotifyManager {
                     .header("Authorization", "Bearer " + accessToken)
                     .PUT(HttpRequest.BodyPublishers.noBody())
                     .build();
-            client.send(request, HttpResponse.BodyHandlers.discarding());
+            sendRequest(client, request, "Failed to toggle repeat mode.");
             if (currentStatus != MediaStatus.EMPTY) {
                 currentStatus = new MediaStatus(
                         currentStatus.title(), currentStatus.artist(),
@@ -1357,6 +1357,28 @@ public final class SpotifyManager {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private HttpResponse<String> sendRequest(HttpClient client, HttpRequest request, String defaultErrorMessage) throws Exception {
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response != null && response.statusCode() >= 400 && response.statusCode() != 401) {
+            int code = response.statusCode();
+            String msg = defaultErrorMessage;
+            try {
+                String body = response.body();
+                if (body != null && !body.isBlank()) {
+                    JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+                    if (json.has("error")) {
+                        JsonObject err = json.getAsJsonObject("error");
+                        if (err.has("message")) {
+                            msg = err.get("message").getAsString();
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            HttpNotificationManager.show(code, msg);
+        }
+        return response;
     }
 
     public record MediaStatus(String title, String artist, double positionSeconds, double durationSeconds, String artworkPath, String trackId, boolean isPlaying, boolean shuffleState, int volumePercent, boolean liked, String repeatState) {

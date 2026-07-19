@@ -82,6 +82,8 @@ public class HaloClient implements ClientModInitializer {
                     .filter(com.haloclient.client.module.Module::isEnabled)
                     .forEach(m -> m.onRender(graphics, deltaTracker));
         }
+
+        com.haloclient.client.gui.click.HttpNotificationManager.render(graphics);
     }
 
     public static void renderRounded(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
