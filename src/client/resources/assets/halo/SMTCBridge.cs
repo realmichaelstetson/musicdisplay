@@ -70,6 +70,16 @@ namespace SMTCBridge
 
         static void Main(string[] args)
         {
+            try
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                Console.InputEncoding = System.Text.Encoding.UTF8;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Failed to set console encoding: " + ex.Message);
+            }
+
             // Parse arguments: output artwork path
             _artworkSavePath = args.Length > 0 ? args[0] : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "windows-media-art.png");
 
