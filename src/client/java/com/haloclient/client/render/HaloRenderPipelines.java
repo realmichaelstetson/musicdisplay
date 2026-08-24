@@ -12,9 +12,20 @@ import net.minecraft.resources.Identifier;
 
 public class HaloRenderPipelines {
     
-    public static final VertexFormatElement CUSTOM_DATA = VertexFormatElement.register(7, 0, VertexFormatElement.Type.FLOAT, false, 4);
-    public static final VertexFormatElement COLOR2 = VertexFormatElement.register(8, 0, VertexFormatElement.Type.UBYTE, true, 4);
-    public static final VertexFormatElement SHADOW_PROPS = VertexFormatElement.register(9, 0, VertexFormatElement.Type.FLOAT, false, 4);
+    public static final VertexFormatElement CUSTOM_DATA = registerCustomElement(0, VertexFormatElement.Type.FLOAT, false, 4);
+    public static final VertexFormatElement COLOR2 = registerCustomElement(0, VertexFormatElement.Type.UBYTE, true, 4);
+    public static final VertexFormatElement SHADOW_PROPS = registerCustomElement(0, VertexFormatElement.Type.FLOAT, false, 4);
+
+    private static VertexFormatElement registerCustomElement(int index, VertexFormatElement.Type type, boolean normalized, int count) {
+        // Allocate IDs starting from 31 downwards to avoid conflicting with vanilla (0-6)
+        // and other mods (such as Iris shaders which register elements starting from 7).
+        for (int id = 31; id >= 0; id--) {
+            if (VertexFormatElement.byId(id) == null) {
+                return VertexFormatElement.register(id, index, type, normalized, count);
+            }
+        }
+        throw new IllegalStateException("No available VertexFormatElement ID remaining!");
+    }
     
     public static final VertexFormat ROUNDED_RECT_FORMAT = VertexFormat.builder()
             .add("Position", VertexFormatElement.POSITION)

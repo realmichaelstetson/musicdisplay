@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 	"id": "musicdisplay",
-	"version": "2.6",
+	"version": "2.6.1",
 	"name": "Music Display",
 	"description": "Cool music display",
 	"authors": [
