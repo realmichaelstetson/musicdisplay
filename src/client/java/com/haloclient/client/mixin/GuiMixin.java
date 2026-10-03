@@ -16,6 +16,8 @@ public class GuiMixin {
 
     @Inject(method = "extractRenderState", at = @At("TAIL"))
     private void halo$onAfterExtractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+        // Hidden with the rest of the HUD (F1)
+        if (((Hud) (Object) this).isHidden()) return;
         HaloClient.renderModules(graphics, deltaTracker);
     }
 
