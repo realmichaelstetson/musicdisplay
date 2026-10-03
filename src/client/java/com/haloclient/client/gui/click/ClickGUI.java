@@ -114,6 +114,7 @@ public class ClickGUI extends Screen {
     private long searchLastBlinkTime = 0;
     private boolean searchCursorVisible = true;
     private boolean searchLoading = false;
+    private String searchMessage = null; //shown when a finished search has no results (error or "No results")
     private java.util.List<SpotifyManager.SearchResultTrack> searchResults = new java.util.ArrayList<>();
     private SpotifyManager.SearchFilter currentSearchFilter = SpotifyManager.SearchFilter.ALL;
 
@@ -166,6 +167,7 @@ public class ClickGUI extends Screen {
         searchResults.clear();
         searchArtRenderers.clear();
         searchLoading = false;
+        searchMessage = null;
         currentSearchFilter = SpotifyManager.SearchFilter.ALL;
         filterIndicatorX.setStartValue(0.0f);
         filterIndicatorWidth.setStartValue(0.0f);
@@ -827,6 +829,20 @@ public class ClickGUI extends Screen {
                         0.0f,
                         scissor
                 ));
+            } else if (searchResults.isEmpty() && searchMessage != null) {
+                float msgCenterY = y + 38.0f + (HEIGHT - 38.0f - PADDING) / 2.0f;
+                float msgCenterX = x + WIDTH / 2.0f;
+                var msgFont = MsdfFontManager.getFont("productsans-semibold", 7.0f);
+                if (msgFont != null) {
+                    String msg = searchMessage;
+                    float maxW = WIDTH - PADDING * 4.0f;
+                    while (msg.length() > 4 && msgFont.getWidth(msg, 7.0f) > maxW) {
+                        msg = msg.substring(0, msg.length() - 4) + "...";
+                    }
+                    float textW = msgFont.getWidth(msg, 7.0f);
+                    graphics.guiRenderState.addGuiElement(new HaloFontRenderState(msgFont, msg, new Matrix3x2f(pose), msgCenterX - textW / 2.0f, msgCenterY - msgFont.getHeight(7.0f) / 2.0f, 7.0f, ARGB.color(255, 161, 161, 170), scissor
+                    ));
+                }
             } else {
                 // Render search results!
                 float listStartY = y + 38.0f;
@@ -2077,16 +2093,20 @@ public class ClickGUI extends Screen {
             searchResults.clear();
             searchArtRenderers.clear();
             searchLoading = false;
+            searchMessage = null;
             return;
         }
         searchLoading = true;
+        searchMessage = null;
         SpotifyManager.SearchFilter filter = this.currentSearchFilter;
         java.util.concurrent.CompletableFuture.runAsync(() -> {
             var results = SpotifyManager.getInstance().search(query, filter);
+            String error = SpotifyManager.getInstance().getLastSearchError();
             Minecraft.getInstance().execute(() -> {
                 if (searchInputText.equals(query) && this.currentSearchFilter == filter) {
                     this.searchResults = results;
                     this.searchLoading = false;
+                    this.searchMessage = results.isEmpty() ? (error != null ? error : "No results") : null;
                 }
             });
         });

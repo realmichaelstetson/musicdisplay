@@ -483,7 +483,7 @@ public final class SpotifyManager {
                         } else {
                             try {
                                 HttpRequest likedRequest = HttpRequest.newBuilder()
-                                        .uri(URI.create("https://api.spotify.com/v1/me/tracks/contains?ids=" + trackId))
+                                        .uri(URI.create("https://api.spotify.com/v1/me/library/contains?uris=" + toTrackUris(trackId)))
                                         .header("Authorization", "Bearer " + accessToken)
                                         .GET()
                                         .build();
@@ -847,24 +847,65 @@ public final class SpotifyManager {
         }
     }
 
-    public synchronized java.util.List<SearchResultTrack> searchTracks(String query) {
+    public java.util.List<SearchResultTrack> searchTracks(String query) {
         return search(query, SearchFilter.ALL);
     }
 
-    public synchronized java.util.List<SearchResultTrack> search(String query, SearchFilter filter) {
+    /** Error message of the last search, or null if it succeeded. Read by the ClickGUI to show feedback. */
+    private volatile String lastSearchError = null;
+
+    public String getLastSearchError() {
+        return lastSearchError;
+    }
+
+    private static String toTrackUris(String commaSeparatedIds) {
+        StringBuilder uris = new StringBuilder();
+        for (String id : commaSeparatedIds.split(",")) {
+            if (id.isBlank()) continue;
+            if (uris.length() > 0) uris.append(',');
+            uris.append("spotify:track:").append(id.trim());
+        }
+        return URLEncoder.encode(uris.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static String jsonString(JsonObject obj, String key, String fallback) {
+        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull()) return fallback;
+        return obj.get(key).getAsString();
+    }
+
+    private static String searchErrorMessage(HttpResponse<String> response) {
+        String msg = "HTTP " + response.statusCode();
+        try {
+            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+            if (json.has("error") && json.get("error").isJsonObject()) {
+                msg += ": " + jsonString(json.getAsJsonObject("error"), "message", "");
+            }
+        } catch (Exception ignored) {}
+        return msg;
+    }
+
+    //Not synchronized on purpose: playback commands and polling hold the monitor during their own
+    //HTTP calls, and search must not queue up behind them.
+    public java.util.List<SearchResultTrack> search(String query, SearchFilter filter) {
         java.util.List<SearchResultTrack> results = new java.util.ArrayList<>();
-        if (!authorized || accessToken.isBlank()) return results;
+        if (!authorized || accessToken.isBlank()) {
+            lastSearchError = "Connect Spotify to search";
+            return results;
+        }
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
         }
+        lastSearchError = null;
+        String accessToken = this.accessToken;
         try {
-            HttpClient client = HttpClient.newHttpClient();
+            HttpClient client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build();
             String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
 
             if (filter == SearchFilter.OWN_PLAYLISTS) {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create("https://api.spotify.com/v1/me/playlists?limit=50"))
                         .header("Authorization", "Bearer " + accessToken)
+                        .timeout(java.time.Duration.ofSeconds(10))
                         .GET()
                         .build();
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -876,10 +917,11 @@ public final class SpotifyManager {
                         for (int i = 0; i < items.size() && count < 5; i++) {
                             if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
                             JsonObject playlist = items.get(i).getAsJsonObject();
-                            String name = playlist.get("name").getAsString();
+                            String name = jsonString(playlist, "name", "");
                             if (name.toLowerCase().contains(query.toLowerCase())) {
-                                String id = playlist.get("id").getAsString();
-                                String owner = playlist.getAsJsonObject("owner").get("display_name").getAsString();
+                                String id = jsonString(playlist, "id", null);
+                                if (id == null) continue;
+                                String owner = playlist.has("owner") && playlist.get("owner").isJsonObject() ? jsonString(playlist.getAsJsonObject("owner"), "display_name", "Unknown") : "Unknown";
                                 String artUrl = "";
                                 if (playlist.has("images")) {
                                     var images = playlist.getAsJsonArray("images");
@@ -896,8 +938,10 @@ public final class SpotifyManager {
                             }
                         }
                     }
-                } else if (response.statusCode() == 401) {
-                    refreshToken();
+                } else {
+                    lastSearchError = searchErrorMessage(response);
+                    System.err.println("[Halo/Spotify] Playlist search failed: " + response.statusCode() + " " + response.body());
+                    if (response.statusCode() == 401) refreshToken();
                 }
                 return results;
             }
@@ -915,6 +959,7 @@ public final class SpotifyManager {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.spotify.com/v1/search?q=" + encodedQuery + "&type=" + typeParam + "&limit=" + limit))
                     .header("Authorization", "Bearer " + accessToken)
+                    .timeout(java.time.Duration.ofSeconds(10))
                     .GET()
                     .build();
 
@@ -932,6 +977,7 @@ public final class SpotifyManager {
                     for (int i = 0; i < trackCount; i++) {
                         if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
                         JsonObject track = items.get(i).getAsJsonObject();
+                        if (jsonString(track, "id", null) == null) continue;
                         if (validCount > 0) ids.append(",");
                         ids.append(track.get("id").getAsString());
                         validCount++;
@@ -940,8 +986,9 @@ public final class SpotifyManager {
                     boolean[] likedStates = new boolean[trackCount];
                     if (ids.length() > 0) {
                         HttpRequest likedRequest = HttpRequest.newBuilder()
-                                .uri(URI.create("https://api.spotify.com/v1/me/tracks/contains?ids=" + ids.toString()))
+                                .uri(URI.create("https://api.spotify.com/v1/me/library/contains?uris=" + toTrackUris(ids.toString())))
                                 .header("Authorization", "Bearer " + accessToken)
+                                .timeout(java.time.Duration.ofSeconds(10))
                                 .GET()
                                 .build();
                         HttpResponse<String> likedResp = client.send(likedRequest, HttpResponse.BodyHandlers.ofString());
@@ -950,6 +997,7 @@ public final class SpotifyManager {
                             int likedIdx = 0;
                             for (int i = 0; i < trackCount; i++) {
                                 if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
+                                if (jsonString(items.get(i).getAsJsonObject(), "id", null) == null) continue;
                                 if (likedIdx < likedArr.size()) {
                                     likedStates[i] = likedArr.get(likedIdx).getAsBoolean();
                                     likedIdx++;
@@ -961,8 +1009,9 @@ public final class SpotifyManager {
                     for (int i = 0; i < trackCount; i++) {
                         if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
                         JsonObject track = items.get(i).getAsJsonObject();
-                        String id = track.get("id").getAsString();
-                        String title = track.get("name").getAsString();
+                        String id = jsonString(track, "id", null);
+                        if (id == null) continue;
+                        String title = jsonString(track, "name", "");
                         
                         StringBuilder artists = new StringBuilder();
                         if (track.has("artists")) {
@@ -1001,9 +1050,10 @@ public final class SpotifyManager {
                     for (int i = 0; i < playlistCount; i++) {
                         if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
                         JsonObject playlist = items.get(i).getAsJsonObject();
-                        String id = playlist.get("id").getAsString();
-                        String name = playlist.get("name").getAsString();
-                        String owner = playlist.getAsJsonObject("owner").get("display_name").getAsString();
+                        String id = jsonString(playlist, "id", null);
+                        if (id == null) continue;
+                        String name = jsonString(playlist, "name", "");
+                        String owner = playlist.has("owner") && playlist.get("owner").isJsonObject() ? jsonString(playlist.getAsJsonObject("owner"), "display_name", "Unknown") : "Unknown";
                         String artUrl = "";
                         if (playlist.has("images")) {
                             var images = playlist.getAsJsonArray("images");
@@ -1018,10 +1068,13 @@ public final class SpotifyManager {
                         results.add(new SearchResultTrack(id, name, "Playlist by " + owner, artUrl, localArtPath, false, true));
                     }
                 }
-            } else if (response.statusCode() == 401) {
-                refreshToken();
+            } else {
+                lastSearchError = searchErrorMessage(response);
+                System.err.println("[Halo/Spotify] Search failed: " + response.statusCode() + " " + response.body());
+                if (response.statusCode() == 401) refreshToken();
             }
         } catch (Exception e) {
+            lastSearchError = "Search failed: " + e.getClass().getSimpleName();
             e.printStackTrace();
         }
         return results;
@@ -1127,7 +1180,7 @@ public final class SpotifyManager {
         try {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest.Builder builder = HttpRequest.newBuilder()
-                     .uri(URI.create("https://api.spotify.com/v1/me/tracks?ids=" + trackId))
+                     .uri(URI.create("https://api.spotify.com/v1/me/library?uris=" + toTrackUris(trackId)))
                      .header("Authorization", "Bearer " + accessToken);
             
             if (like) {
