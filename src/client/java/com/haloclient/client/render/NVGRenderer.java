@@ -138,7 +138,7 @@ public final class NVGRenderer {
                     // that NanoVG manages internally during nvgEndFrame().  Using MC's
                     // abstraction was causing font-atlas texture binds to be stomped,
                     // making all nvgText() calls invisible while shape fills still worked.
-                    final RenderTarget rt = mc.getMainRenderTarget();
+                    final RenderTarget rt = mc.gameRenderer.mainRenderTarget();
                     final int colorTexId = ((com.mojang.blaze3d.opengl.GlTexture) rt.getColorTexture()).glId();
                     if (haloFbo == 0 || haloFboColorTexId != colorTexId) {
                         if (haloFbo != 0) GL33C.glDeleteFramebuffers(haloFbo);

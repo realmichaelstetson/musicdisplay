@@ -5,7 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.GpuSampler;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
 import net.minecraft.client.Minecraft;
@@ -268,7 +268,7 @@ public class ImageManager {
         GpuTexture gpuTexture = RenderSystem.getDevice().createTexture(
                 "Halo Image",
                 GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC | GpuTexture.USAGE_TEXTURE_BINDING,
-                TextureFormat.RGBA8,
+                GpuFormat.RGBA8_UNORM,
                 w, h, 1, mipLevels
         );
 
@@ -276,7 +276,7 @@ public class ImageManager {
         var encoder = RenderSystem.getDevice().createCommandEncoder();
 
         // Upload mip level 0 (pełna rozdzielczość)
-        encoder.writeToTexture(gpuTexture, pixels, NativeImage.Format.RGBA, 0, 0, 0, 0, w, h);
+        encoder.writeToTexture(gpuTexture, pixels, 0, 0, 0, 0, w, h);
 
         // Generuj i uploaduj kolejne mip levels (box filter na CPU)
         ByteBuffer currentMip = pixels;
@@ -287,7 +287,7 @@ public class ImageManager {
             int newH = Math.max(1, mipH / 2);
 
             ByteBuffer nextMip = downsampleMip(currentMip, mipW, mipH, newW, newH);
-            encoder.writeToTexture(gpuTexture, nextMip, NativeImage.Format.RGBA, level, 0, 0, 0, newW, newH);
+            encoder.writeToTexture(gpuTexture, nextMip, level, 0, 0, 0, newW, newH);
 
             // Zwolnij poprzedni mip (ale nie oryginalne pixels - to zwalniamy na końcu)
             if (level > 1) {

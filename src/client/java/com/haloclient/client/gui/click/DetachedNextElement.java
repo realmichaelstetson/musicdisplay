@@ -219,7 +219,7 @@ public final class DetachedNextElement {
     public static boolean onMouseClicked(double mouseX, double mouseY, int button) {
         if (!MusicDisplayOverlay.isVisible() || !MusicDisplayOverlay.independentNextSong) return false;
 
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof ClickGUI;
+        boolean chatOpen = Minecraft.getInstance().gui.screen() instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().gui.screen() instanceof ClickGUI;
         if (!chatOpen) return false;
 
         float currentHeight = HEIGHT;

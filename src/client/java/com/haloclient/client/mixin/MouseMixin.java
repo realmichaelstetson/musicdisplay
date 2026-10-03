@@ -31,7 +31,7 @@ public abstract class MouseMixin {
 
     @Inject(method = "onButton", at = @At("HEAD"), cancellable = true)
     private void halo$onButton(long window, MouseButtonInfo buttonInfo, int action, CallbackInfo ci) {
-        if (this.minecraft.screen instanceof ChatScreen || this.minecraft.screen instanceof ClickGUI) {
+        if (this.minecraft.gui.screen() instanceof ChatScreen || this.minecraft.gui.screen() instanceof ClickGUI) {
             Window win = this.minecraft.getWindow();
             double xm = this.getScaledXPos(win);
             double ym = this.getScaledYPos(win);
@@ -54,7 +54,7 @@ public abstract class MouseMixin {
 
     @Inject(method = "handleAccumulatedMovement", at = @At("HEAD"))
     private void halo$onMove(CallbackInfo ci) {
-        if ((this.minecraft.screen instanceof ChatScreen || this.minecraft.screen instanceof ClickGUI) && this.activeButton != null) {
+        if ((this.minecraft.gui.screen() instanceof ChatScreen || this.minecraft.gui.screen() instanceof ClickGUI) && this.activeButton != null) {
             Window win = this.minecraft.getWindow();
             double xm = this.getScaledXPos(win);
             double ym = this.getScaledYPos(win);
@@ -67,7 +67,7 @@ public abstract class MouseMixin {
 
     @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
     private void halo$onScroll(long handle, double xoffset, double yoffset, CallbackInfo ci) {
-        if (this.minecraft.screen instanceof ChatScreen || this.minecraft.screen instanceof ClickGUI) {
+        if (this.minecraft.gui.screen() instanceof ChatScreen || this.minecraft.gui.screen() instanceof ClickGUI) {
             Window win = this.minecraft.getWindow();
             double xm = this.getScaledXPos(win);
             double ym = this.getScaledYPos(win);

@@ -28,7 +28,7 @@ public class HaloScreen extends Screen {
         scaleAnimation.run(closing ? 0.0f : 1.0f);
         
         if (closing && scaleAnimation.getValue() <= 0.001f) {
-            this.minecraft.setScreen(null);
+            this.minecraft.gui.setScreen(null);
             return;
         }
 

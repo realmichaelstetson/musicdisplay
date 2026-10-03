@@ -210,7 +210,7 @@ public final class MusicDisplayOverlay {
         heightAnimation.run(showControls ? 58.0f : 44.0f);
         float currentHeight = heightAnimation.getValue();
 
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof com.haloclient.client.gui.click.ClickGUI;
+        boolean chatOpen = Minecraft.getInstance().gui.screen() instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().gui.screen() instanceof com.haloclient.client.gui.click.ClickGUI;
         if (!chatOpen) {
             showPaintbrushButton = false;
             if (colorPickerGuiInstance != null) {
@@ -1282,7 +1282,7 @@ public final class MusicDisplayOverlay {
     public static boolean onMouseClicked(double mouseX, double mouseY, int button) {
         if (!visible) return false;
 
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof com.haloclient.client.gui.click.ClickGUI;
+        boolean chatOpen = Minecraft.getInstance().gui.screen() instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().gui.screen() instanceof com.haloclient.client.gui.click.ClickGUI;
         float currentHeight = heightAnimation.getValue();
         float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());
         float y = resolveY(Minecraft.getInstance().getWindow().getGuiScaledHeight());
@@ -1495,7 +1495,7 @@ public final class MusicDisplayOverlay {
     }
 
     public static boolean onMouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        boolean chatOpen = Minecraft.getInstance().screen instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().screen instanceof com.haloclient.client.gui.click.ClickGUI;
+        boolean chatOpen = Minecraft.getInstance().gui.screen() instanceof net.minecraft.client.gui.screens.ChatScreen || Minecraft.getInstance().gui.screen() instanceof com.haloclient.client.gui.click.ClickGUI;
         if (chatOpen && colorPickerGuiInstance != null && colorPickerGuiInstance.colorPickerOpen && colorPickerPopupAnimation.getValue() > 0.5f) {
             float currentHeight = heightAnimation.getValue();
             float x = resolveX(Minecraft.getInstance().getWindow().getGuiScaledWidth());

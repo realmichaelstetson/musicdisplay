@@ -3,7 +3,7 @@ package com.haloclient.client.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.TextureSetup;
 
@@ -17,9 +17,9 @@ public class CaptureManager {
     }
 
     public static void updateCapture(Minecraft mc) {
-        if (!RenderSystem.isOnRenderThread() || mc == null || mc.getMainRenderTarget() == null) return;
+        if (!RenderSystem.isOnRenderThread() || mc == null || mc.gameRenderer.mainRenderTarget() == null) return;
 
-        var screenTex = mc.getMainRenderTarget().getColorTexture();
+        var screenTex = mc.gameRenderer.mainRenderTarget().getColorTexture();
         if (screenTex == null || screenTex.isClosed()) return;
 
         int w = screenTex.getWidth(0);

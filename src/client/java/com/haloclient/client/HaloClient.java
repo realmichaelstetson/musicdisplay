@@ -54,8 +54,8 @@ public class HaloClient implements ClientModInitializer {
 
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openClickGuiKey.consumeClick()) {
-                if (client.screen == null) {
-                    client.setScreen(new com.haloclient.client.gui.click.ClickGUI());
+                if (client.gui.screen() == null) {
+                    client.gui.setScreen(new com.haloclient.client.gui.click.ClickGUI());
                 }
             }
         });
@@ -154,7 +154,7 @@ public class HaloClient implements ClientModInitializer {
         var mc = Minecraft.getInstance();
         if (mc.player != null) {
             double px, py, pz;
-            var cameraState = mc.gameRenderer.getGameRenderState().levelRenderState.cameraRenderState;
+            var cameraState = mc.gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
             
             // METODA PURE-MATRIX: Zero odwołań do 'żywych' pozycji gracza/kamery.
             // Wszystko liczymy na podstawie zamrożonej macierzy klatki.
@@ -184,7 +184,7 @@ public class HaloClient implements ClientModInitializer {
         var mc = Minecraft.getInstance();
         if (mc.level == null || mc.gameRenderer == null) return;
 
-        var cameraState = mc.gameRenderer.getGameRenderState().levelRenderState.cameraRenderState;
+        var cameraState = mc.gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
         var camPos = cameraState.pos;
         
         Matrix4f modelView = new Matrix4f(cameraState.viewRotationMatrix);
