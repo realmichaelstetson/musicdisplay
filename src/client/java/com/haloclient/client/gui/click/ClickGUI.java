@@ -1,5 +1,7 @@
 package com.haloclient.client.gui.click;
 
+import com.google.gson.JsonObject;
+import com.haloclient.client.config.ConfigManager;
 import com.haloclient.client.render.renderstates.BlurredRoundedRectangleRenderState;
 import com.haloclient.client.render.CaptureManager;
 import com.haloclient.client.render.HaloRenderPipelines;
@@ -1522,18 +1524,31 @@ public class ClickGUI extends Screen {
         return false;
     }
 
+    public static void writeConfig(JsonObject json) {
+        ConfigManager.putFloat(json, "x", panelX);
+        ConfigManager.putFloat(json, "y", panelY);
+        json.addProperty("scale", guiScale);
+    }
+
+    public static void readConfig(JsonObject json) {
+        panelX = ConfigManager.getFloat(json, "x", Float.NaN);
+        panelY = ConfigManager.getFloat(json, "y", Float.NaN);
+        guiScale = Math.clamp(ConfigManager.getFloat(json, "scale", guiScale), 0.5f, 1.5f);
+    }
+
     private static float resolvePanelX(int screenWidth) {
         if (Float.isNaN(panelX)) {
             return (screenWidth - WIDTH) / 2.0f;
         }
-        return panelX;
+        //Keep the panel reachable if a saved position is off-screen after a resolution change
+        return Math.clamp(panelX, 40.0f - WIDTH, screenWidth - 40.0f);
     }
 
     private static float resolvePanelY(int screenHeight) {
         if (Float.isNaN(panelY)) {
             return (screenHeight - HEIGHT) / 2.0f;
         }
-        return panelY;
+        return Math.clamp(panelY, 0.0f, Math.max(0.0f, screenHeight - 40.0f));
     }
 
     public static boolean isHovered(double mouseX, double mouseY, float x, float y, float width, float height) {

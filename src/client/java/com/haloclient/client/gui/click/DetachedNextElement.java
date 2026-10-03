@@ -1,5 +1,7 @@
 package com.haloclient.client.gui.click;
 
+import com.google.gson.JsonObject;
+import com.haloclient.client.config.ConfigManager;
 import com.haloclient.client.render.*;
 import com.haloclient.client.render.animation.Animation;
 import com.haloclient.client.render.animation.Easing;
@@ -37,6 +39,19 @@ public final class DetachedNextElement {
     }
 
     private DetachedNextElement() {
+    }
+
+    public static void writeConfig(JsonObject json) {
+        ConfigManager.putFloat(json, "x", relativeX);
+        ConfigManager.putFloat(json, "y", relativeY);
+        json.addProperty("scale", targetUserScale);
+    }
+
+    public static void readConfig(JsonObject json) {
+        relativeX = Math.max(0.0f, Math.min(1.0f, ConfigManager.getFloat(json, "x", Float.NaN)));
+        relativeY = Math.max(0.0f, Math.min(1.0f, ConfigManager.getFloat(json, "y", Float.NaN)));
+        targetUserScale = Math.max(0.4f, Math.min(2.5f, ConfigManager.getFloat(json, "scale", targetUserScale)));
+        userScaleAnimation.setStartValue(targetUserScale);
     }
 
     public static void render(GuiGraphicsExtractor graphics) {

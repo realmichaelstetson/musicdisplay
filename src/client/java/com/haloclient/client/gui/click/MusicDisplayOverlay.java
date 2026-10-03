@@ -1,5 +1,7 @@
 package com.haloclient.client.gui.click;
 
+import com.google.gson.JsonObject;
+import com.haloclient.client.config.ConfigManager;
 import com.haloclient.client.gui.click.elements.SliderElement;
 import com.haloclient.client.render.*;
 import com.haloclient.client.render.animation.Animation;
@@ -185,6 +187,43 @@ public final class MusicDisplayOverlay {
 
     public static void setBackgroundType(BackgroundType value) {
         backgroundType = value;
+    }
+
+    public static void writeConfig(JsonObject json) {
+        ConfigManager.putFloat(json, "x", relativeX);
+        ConfigManager.putFloat(json, "y", relativeY);
+        json.addProperty("scale", targetUserScale);
+        json.addProperty("backgroundColor", backgroundColor);
+        json.addProperty("titleColor", titleColor);
+        json.addProperty("artistColor", artistColor);
+        json.addProperty("timeColor", timeColor);
+        json.addProperty("progressColor", progressColor);
+        json.addProperty("showControls", showControls);
+        json.addProperty("showNextSong", showNextSong);
+        json.addProperty("independentNextSong", independentNextSong);
+        json.addProperty("backgroundType", backgroundType.name());
+        json.addProperty("musicSource", musicSource.name());
+        json.addProperty("blurStrength", blurStrength);
+        json.addProperty("bloomStrength", bloomStrength);
+    }
+
+    public static void readConfig(JsonObject json) {
+        relativeX = clamp(ConfigManager.getFloat(json, "x", Float.NaN), 0.0f, 1.0f);
+        relativeY = clamp(ConfigManager.getFloat(json, "y", Float.NaN), 0.0f, 1.0f);
+        targetUserScale = clamp(ConfigManager.getFloat(json, "scale", targetUserScale), 0.4f, 2.5f);
+        userScaleAnimation.setStartValue(targetUserScale);
+        backgroundColor = ConfigManager.getInt(json, "backgroundColor", backgroundColor);
+        titleColor = ConfigManager.getInt(json, "titleColor", titleColor);
+        artistColor = ConfigManager.getInt(json, "artistColor", artistColor);
+        timeColor = ConfigManager.getInt(json, "timeColor", timeColor);
+        progressColor = ConfigManager.getInt(json, "progressColor", progressColor);
+        showControls = ConfigManager.getBoolean(json, "showControls", showControls);
+        showNextSong = ConfigManager.getBoolean(json, "showNextSong", showNextSong);
+        independentNextSong = ConfigManager.getBoolean(json, "independentNextSong", independentNextSong);
+        backgroundType = ConfigManager.getEnum(json, "backgroundType", BackgroundType.class, backgroundType);
+        musicSource = ConfigManager.getEnum(json, "musicSource", MusicSource.class, musicSource);
+        setBlurStrength(ConfigManager.getFloat(json, "blurStrength", blurStrength));
+        setBloomStrength(ConfigManager.getFloat(json, "bloomStrength", bloomStrength));
     }
 
     public static void render(GuiGraphicsExtractor graphics) {

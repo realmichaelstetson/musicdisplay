@@ -2,6 +2,7 @@ package com.haloclient.client;
 
 import com.haloclient.client.render.renderstates.BlurredQuadRenderState;
 import com.haloclient.client.render.renderstates.BlurredRoundedRectangleRenderState;
+import com.haloclient.client.config.ConfigManager;
 import com.haloclient.client.render.CaptureManager;
 import com.haloclient.client.render.HaloRenderPipelines;
 import com.haloclient.client.render.animation.Animation;
@@ -48,11 +49,13 @@ public class HaloClient implements ClientModInitializer {
         INSTANCE = this;
         HaloRenderPipelines.init();
         moduleManager = new ModuleManager();
+        ConfigManager.load(moduleManager);
         com.haloclient.client.gui.click.SpotifyManager.getInstance().load();
         com.haloclient.client.gui.click.SpotifyManager.getInstance().startPolling();
         com.haloclient.client.gui.click.WindowsMediaManager.getInstance().start();
 
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            ConfigManager.tick(moduleManager);
             while (openClickGuiKey.consumeClick()) {
                 if (client.gui.screen() == null) {
                     client.gui.setScreen(new com.haloclient.client.gui.click.ClickGUI());
@@ -61,6 +64,9 @@ public class HaloClient implements ClientModInitializer {
         });
 
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            try {
+                ConfigManager.save(moduleManager);
+            } catch (Throwable ignored) {}
             try {
                 com.haloclient.client.gui.click.SpotifyManager.getInstance().cleanOldArtworkCache();
             } catch (Throwable ignored) {}
