@@ -848,7 +848,7 @@ public final class SpotifyManager {
     }
 
     public java.util.List<SearchResultTrack> searchTracks(String query) {
-        return search(query, SearchFilter.ALL);
+        return search(query, SearchFilter.ALL, 0).results();
     }
 
     /** Error message of the last search, or null if it succeeded. Read by the ClickGUI to show feedback. */
@@ -884,80 +884,83 @@ public final class SpotifyManager {
         return msg;
     }
 
+    /** One batch of search results. When hasMore is true, the next batch is fetched with nextOffset. */
+    public record SearchPage(java.util.List<SearchResultTrack> results, boolean hasMore, int nextOffset) {}
+
+    // Spotify caps the search limit at 10 since the February 2026 Web API changes
+    private static final int SEARCH_BATCH_SIZE = 10;
+    private static final int OWN_PLAYLISTS_BATCH_SIZE = 50;
+    private static final int OWN_PLAYLISTS_MAX_REQUESTS = 10;
+
     //Not synchronized on purpose: playback commands and polling hold the monitor during their own
     //HTTP calls, and search must not queue up behind them.
-    public java.util.List<SearchResultTrack> search(String query, SearchFilter filter) {
+    public SearchPage search(String query, SearchFilter filter, int offset) {
         java.util.List<SearchResultTrack> results = new java.util.ArrayList<>();
         if (!authorized || accessToken.isBlank()) {
             lastSearchError = "Connect Spotify to search";
-            return results;
+            return new SearchPage(results, false, offset);
         }
         if (System.currentTimeMillis() + 30000L > tokenExpiresAt) {
             refreshToken();
         }
         lastSearchError = null;
         String accessToken = this.accessToken;
+        boolean hasMore = false;
+        int nextOffset = offset;
         try {
             HttpClient client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build();
             String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
 
             if (filter == SearchFilter.OWN_PLAYLISTS) {
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("https://api.spotify.com/v1/me/playlists?limit=50"))
-                        .header("Authorization", "Bearer " + accessToken)
-                        .timeout(java.time.Duration.ofSeconds(10))
-                        .GET()
-                        .build();
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() == 200) {
+                // The API can't filter own playlists by name, so keep fetching batches until something matches
+                for (int request = 0; request < OWN_PLAYLISTS_MAX_REQUESTS; request++) {
+                    HttpRequest httpRequest = HttpRequest.newBuilder()
+                            .uri(URI.create("https://api.spotify.com/v1/me/playlists?limit=" + OWN_PLAYLISTS_BATCH_SIZE + "&offset=" + nextOffset))
+                            .header("Authorization", "Bearer " + accessToken)
+                            .timeout(java.time.Duration.ofSeconds(10))
+                            .GET()
+                            .build();
+                    HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() != 200) {
+                        lastSearchError = searchErrorMessage(response);
+                        System.err.println("[Halo/Spotify] Playlist search failed: " + response.statusCode() + " " + response.body());
+                        if (response.statusCode() == 401) refreshToken();
+                        hasMore = false;
+                        break;
+                    }
                     JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
                     if (json.has("items")) {
                         var items = json.getAsJsonArray("items");
-                        int count = 0;
-                        for (int i = 0; i < items.size() && count < 5; i++) {
+                        for (int i = 0; i < items.size(); i++) {
                             if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
                             JsonObject playlist = items.get(i).getAsJsonObject();
                             String name = jsonString(playlist, "name", "");
-                            if (name.toLowerCase().contains(query.toLowerCase())) {
-                                String id = jsonString(playlist, "id", null);
-                                if (id == null) continue;
-                                String owner = playlist.has("owner") && playlist.get("owner").isJsonObject() ? jsonString(playlist.getAsJsonObject("owner"), "display_name", "Unknown") : "Unknown";
-                                String artUrl = "";
-                                if (playlist.has("images")) {
-                                    var images = playlist.getAsJsonArray("images");
-                                    if (images.size() > 0) {
-                                        artUrl = images.get(0).getAsJsonObject().get("url").getAsString();
-                                    }
-                                }
-                                String localArtPath = "";
-                                if (!artUrl.isEmpty()) {
-                                    localArtPath = getAndDownloadSearchArt(id, artUrl);
-                                }
-                                results.add(new SearchResultTrack(id, name, "Playlist by " + owner, artUrl, localArtPath, false, true));
-                                count++;
-                            }
+                            if (!name.toLowerCase().contains(query.toLowerCase())) continue;
+                            String id = jsonString(playlist, "id", null);
+                            if (id == null) continue;
+                            results.add(new SearchResultTrack(id, name, "Playlist by " + playlistOwner(playlist), firstImageUrl(playlist), "", false, true));
                         }
                     }
-                } else {
-                    lastSearchError = searchErrorMessage(response);
-                    System.err.println("[Halo/Spotify] Playlist search failed: " + response.statusCode() + " " + response.body());
-                    if (response.statusCode() == 401) refreshToken();
+                    nextOffset += OWN_PLAYLISTS_BATCH_SIZE;
+                    hasMore = jsonString(json, "next", null) != null;
+                    if (!results.isEmpty() || !hasMore) break;
                 }
-                return results;
+                return new SearchPage(results, hasMore, nextOffset);
             }
 
             String typeParam = "track";
-            int limit = 5;
+            int limit = SEARCH_BATCH_SIZE;
             if (filter == SearchFilter.SONGS) {
                 typeParam = "track";
             } else if (filter == SearchFilter.PLAYLISTS) {
                 typeParam = "playlist";
             } else if (filter == SearchFilter.ALL) {
                 typeParam = "track,playlist";
+                limit = SEARCH_BATCH_SIZE / 2; // the limit applies per type
             }
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.spotify.com/v1/search?q=" + encodedQuery + "&type=" + typeParam + "&limit=" + limit))
+                    .uri(URI.create("https://api.spotify.com/v1/search?q=" + encodedQuery + "&type=" + typeParam + "&limit=" + limit + "&offset=" + offset))
                     .header("Authorization", "Bearer " + accessToken)
                     .timeout(java.time.Duration.ofSeconds(10))
                     .GET()
@@ -966,27 +969,24 @@ public final class SpotifyManager {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-                
-                if (json.has("tracks")) {
-                    var items = json.getAsJsonObject("tracks").getAsJsonArray("items");
-                    int maxTracks = (filter == SearchFilter.ALL) ? 3 : items.size();
-                    
-                    StringBuilder ids = new StringBuilder();
-                    int trackCount = Math.min(items.size(), maxTracks);
-                    int validCount = 0;
-                    for (int i = 0; i < trackCount; i++) {
-                        if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
-                        JsonObject track = items.get(i).getAsJsonObject();
-                        if (jsonString(track, "id", null) == null) continue;
-                        if (validCount > 0) ids.append(",");
-                        ids.append(track.get("id").getAsString());
-                        validCount++;
+                nextOffset = offset + limit;
+
+                if (json.has("tracks") && json.get("tracks").isJsonObject()) {
+                    JsonObject tracks = json.getAsJsonObject("tracks");
+                    hasMore |= jsonString(tracks, "next", null) != null;
+
+                    java.util.List<JsonObject> validTracks = new java.util.ArrayList<>();
+                    for (var item : tracks.getAsJsonArray("items")) {
+                        if (item == null || !item.isJsonObject()) continue;
+                        if (jsonString(item.getAsJsonObject(), "id", null) == null) continue;
+                        validTracks.add(item.getAsJsonObject());
                     }
-                    
-                    boolean[] likedStates = new boolean[trackCount];
-                    if (ids.length() > 0) {
+
+                    boolean[] likedStates = new boolean[validTracks.size()];
+                    if (!validTracks.isEmpty()) {
+                        String ids = String.join(",", validTracks.stream().map(t -> t.get("id").getAsString()).toList());
                         HttpRequest likedRequest = HttpRequest.newBuilder()
-                                .uri(URI.create("https://api.spotify.com/v1/me/library/contains?uris=" + toTrackUris(ids.toString())))
+                                .uri(URI.create("https://api.spotify.com/v1/me/library/contains?uris=" + toTrackUris(ids)))
                                 .header("Authorization", "Bearer " + accessToken)
                                 .timeout(java.time.Duration.ofSeconds(10))
                                 .GET()
@@ -994,78 +994,36 @@ public final class SpotifyManager {
                         HttpResponse<String> likedResp = client.send(likedRequest, HttpResponse.BodyHandlers.ofString());
                         if (likedResp.statusCode() == 200) {
                             var likedArr = JsonParser.parseString(likedResp.body()).getAsJsonArray();
-                            int likedIdx = 0;
-                            for (int i = 0; i < trackCount; i++) {
-                                if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
-                                if (jsonString(items.get(i).getAsJsonObject(), "id", null) == null) continue;
-                                if (likedIdx < likedArr.size()) {
-                                    likedStates[i] = likedArr.get(likedIdx).getAsBoolean();
-                                    likedIdx++;
-                                }
+                            for (int i = 0; i < likedStates.length && i < likedArr.size(); i++) {
+                                likedStates[i] = likedArr.get(i).getAsBoolean();
                             }
                         }
                     }
 
-                    for (int i = 0; i < trackCount; i++) {
-                        if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
-                        JsonObject track = items.get(i).getAsJsonObject();
-                        String id = jsonString(track, "id", null);
-                        if (id == null) continue;
-                        String title = jsonString(track, "name", "");
-                        
+                    for (int i = 0; i < validTracks.size(); i++) {
+                        JsonObject track = validTracks.get(i);
                         StringBuilder artists = new StringBuilder();
                         if (track.has("artists")) {
                             var arr = track.getAsJsonArray("artists");
                             for (int j = 0; j < arr.size(); j++) {
                                 if (j > 0) artists.append(", ");
-                                artists.append(arr.get(j).getAsJsonObject().get("name").getAsString());
+                                artists.append(jsonString(arr.get(j).getAsJsonObject(), "name", ""));
                             }
                         }
-                        String artist = artists.toString();
-                        
-                        String artUrl = "";
-                        if (track.has("album")) {
-                            JsonObject album = track.getAsJsonObject("album");
-                            if (album.has("images")) {
-                                var images = album.getAsJsonArray("images");
-                                if (images.size() > 0) {
-                                    artUrl = images.get(0).getAsJsonObject().get("url").getAsString();
-                                }
-                            }
-                        }
-
-                        String localArtPath = "";
-                        if (!artUrl.isEmpty()) {
-                            localArtPath = getAndDownloadSearchArt(id, artUrl);
-                        }
-
-                        results.add(new SearchResultTrack(id, title, artist, artUrl, localArtPath, likedStates[i], false));
+                        String artUrl = track.has("album") && track.get("album").isJsonObject() ? firstImageUrl(track.getAsJsonObject("album")) : "";
+                        results.add(new SearchResultTrack(track.get("id").getAsString(), jsonString(track, "name", ""), artists.toString(), artUrl, "", likedStates[i], false));
                     }
                 }
-                
-                if (json.has("playlists")) {
-                    var items = json.getAsJsonObject("playlists").getAsJsonArray("items");
-                    int maxPlaylists = (filter == SearchFilter.ALL) ? (5 - results.size()) : items.size();
-                    int playlistCount = Math.min(items.size(), maxPlaylists);
-                    for (int i = 0; i < playlistCount; i++) {
-                        if (items.get(i) == null || !items.get(i).isJsonObject()) continue;
-                        JsonObject playlist = items.get(i).getAsJsonObject();
+
+                if (json.has("playlists") && json.get("playlists").isJsonObject()) {
+                    JsonObject playlists = json.getAsJsonObject("playlists");
+                    hasMore |= jsonString(playlists, "next", null) != null;
+                    for (var item : playlists.getAsJsonArray("items")) {
+                        if (item == null || !item.isJsonObject()) continue;
+                        JsonObject playlist = item.getAsJsonObject();
                         String id = jsonString(playlist, "id", null);
                         if (id == null) continue;
-                        String name = jsonString(playlist, "name", "");
-                        String owner = playlist.has("owner") && playlist.get("owner").isJsonObject() ? jsonString(playlist.getAsJsonObject("owner"), "display_name", "Unknown") : "Unknown";
-                        String artUrl = "";
-                        if (playlist.has("images")) {
-                            var images = playlist.getAsJsonArray("images");
-                            if (images.size() > 0) {
-                                artUrl = images.get(0).getAsJsonObject().get("url").getAsString();
-                            }
-                        }
-                        String localArtPath = "";
-                        if (!artUrl.isEmpty()) {
-                            localArtPath = getAndDownloadSearchArt(id, artUrl);
-                        }
-                        results.add(new SearchResultTrack(id, name, "Playlist by " + owner, artUrl, localArtPath, false, true));
+                        results.add(new SearchResultTrack(id, jsonString(playlist, "name", ""), "Playlist by " + playlistOwner(playlist), firstImageUrl(playlist), "", false, true));
                     }
                 }
             } else {
@@ -1077,57 +1035,20 @@ public final class SpotifyManager {
             lastSearchError = "Search failed: " + e.getClass().getSimpleName();
             e.printStackTrace();
         }
-        return results;
+        return new SearchPage(results, hasMore, nextOffset);
     }
 
-    private final Map<String, String> searchArtCache = new HashMap<>();
-    private String getAndDownloadSearchArt(String trackId, String url) {
-        synchronized (searchArtCache) {
-            if (searchArtCache.containsKey(trackId)) {
-                File cachedFile = new File(searchArtCache.get(trackId));
-                if (cachedFile.exists() && cachedFile.length() > 0) {
-                    cachedFile.setLastModified(System.currentTimeMillis());
-                    return cachedFile.getAbsolutePath();
-                } else if (cachedFile.exists()) {
-                    cachedFile.delete();
-                }
-            }
-        }
-        File cacheDir = new File(Minecraft.getInstance().gameDirectory, "config/spotify-search-cache");
-        if (!cacheDir.exists()) {
-            cacheDir.mkdirs();
-        }
-        File artFile = new File(cacheDir, trackId + ".png");
-        if (artFile.exists() && artFile.length() > 0) {
-            artFile.setLastModified(System.currentTimeMillis());
-            synchronized (searchArtCache) {
-                searchArtCache.put(trackId, artFile.getAbsolutePath());
-            }
-            return artFile.getAbsolutePath();
-        } else if (artFile.exists()) {
-            artFile.delete();
-        }
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build();
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
-            HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() == 200) {
-                byte[] bytes = response.body();
-                if (bytes != null && bytes.length > 0) {
-                    java.nio.file.Files.write(artFile.toPath(), bytes);
-                    artFile.setLastModified(System.currentTimeMillis());
-                    synchronized (searchArtCache) {
-                        searchArtCache.put(trackId, artFile.getAbsolutePath());
-                    }
-                    return artFile.getAbsolutePath();
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return "";
+    private static String playlistOwner(JsonObject playlist) {
+        return playlist.has("owner") && playlist.get("owner").isJsonObject()
+                ? jsonString(playlist.getAsJsonObject("owner"), "display_name", "Unknown")
+                : "Unknown";
+    }
+
+    private static String firstImageUrl(JsonObject obj) {
+        if (!obj.has("images") || !obj.get("images").isJsonArray()) return "";
+        var images = obj.getAsJsonArray("images");
+        if (images.size() == 0 || !images.get(0).isJsonObject()) return "";
+        return jsonString(images.get(0).getAsJsonObject(), "url", "");
     }
 
     public synchronized void playTrack(String trackId) {
