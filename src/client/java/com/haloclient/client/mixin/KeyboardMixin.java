@@ -18,13 +18,13 @@ public class KeyboardMixin {
     @Inject(method = "keyPress", at = @At("HEAD"), cancellable = true)
     private void halo$onKey(long window, int action, KeyEvent event, CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.screen instanceof com.haloclient.client.gui.click.ClickGUI gui) {
+        if (mc.gui.screen() instanceof com.haloclient.client.gui.click.ClickGUI gui) {
             if (gui.onKeyEvent(event.key(), action, window)) {
                 ci.cancel();
                 return;
             }
         }
-        if (mc.screen instanceof net.minecraft.client.gui.screens.ChatScreen) {
+        if (mc.gui.screen() instanceof net.minecraft.client.gui.screens.ChatScreen) {
             if (com.haloclient.client.gui.click.MusicDisplayOverlay.onKeyEvent(event.key(), action, window)) {
                 ci.cancel();
                 return;
@@ -32,7 +32,7 @@ public class KeyboardMixin {
         }
 
         if (action != GLFW.GLFW_PRESS) return;
-        if (mc.screen != null) return;
+        if (mc.gui.screen() != null) return;
 
         HaloClient.INSTANCE.getModuleManager().getModules().forEach(module -> {
             if (module.getKey() == event.key()) {

@@ -6,7 +6,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.GpuSampler;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.TextureSetup;
@@ -61,12 +61,12 @@ public class HaloFont {
         // Free temporal buffers
         pc.free();
 
-        this.texture = RenderSystem.getDevice().createTexture("Halo Font Texture", GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC | GpuTexture.USAGE_TEXTURE_BINDING, TextureFormat.RED8, width, height, 1, 1);
+        this.texture = RenderSystem.getDevice().createTexture("Halo Font Texture", GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC | GpuTexture.USAGE_TEXTURE_BINDING, GpuFormat.R8_UNORM, width, height, 1, 1);
         this.view = RenderSystem.getDevice().createTextureView(texture);
         
         // Upload data to GPU using the correct method from CommandEncoder
         var encoder = RenderSystem.getDevice().createCommandEncoder();
-        encoder.writeToTexture(texture, bitmap, NativeImage.Format.LUMINANCE, 0, 0, 0, 0, width, height);
+        encoder.writeToTexture(texture, bitmap, 0, 0, 0, 0, width, height);
 
         GpuSampler sampler = RenderSystem.getDevice().createSampler(
             com.mojang.blaze3d.textures.AddressMode.CLAMP_TO_EDGE,

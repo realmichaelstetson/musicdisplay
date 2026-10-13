@@ -13,7 +13,7 @@ public class ClickGUIModule extends Module {
 
     @Override
     protected void onEnable() {
-        mc.setScreen(new ClickGUI());
+        mc.gui.setScreen(new ClickGUI());
         setEnabled(false); // Disable immediately after opening
     }
 }

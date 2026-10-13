@@ -10,7 +10,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.GpuSampler;
-import com.mojang.blaze3d.textures.TextureFormat;
+import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.gui.render.TextureSetup;
 import org.joml.Matrix3x2fc;
@@ -145,7 +145,7 @@ public class MsdfFont {
         this.texture = RenderSystem.getDevice().createTexture(
                 "MSDF Font Atlas",
                 GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC | GpuTexture.USAGE_TEXTURE_BINDING,
-                TextureFormat.RGBA8,
+                GpuFormat.RGBA8_UNORM,
                 imgW, imgH, 1, 1
         );
         this.view = RenderSystem.getDevice().createTextureView(texture);
@@ -169,7 +169,7 @@ public class MsdfFont {
         pixels.flip();
 
         var encoder = RenderSystem.getDevice().createCommandEncoder();
-        encoder.writeToTexture(texture, pixels, NativeImage.Format.RGBA, 0, 0, 0, 0, imgW, imgH);
+        encoder.writeToTexture(texture, pixels, 0, 0, 0, 0, imgW, imgH);
         image.close();
 
         GpuSampler sampler = RenderSystem.getDevice().createSampler(

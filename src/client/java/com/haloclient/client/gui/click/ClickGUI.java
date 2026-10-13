@@ -1,5 +1,7 @@
 package com.haloclient.client.gui.click;
 
+import com.google.gson.JsonObject;
+import com.haloclient.client.config.ConfigManager;
 import com.haloclient.client.render.renderstates.BlurredRoundedRectangleRenderState;
 import com.haloclient.client.render.CaptureManager;
 import com.haloclient.client.render.HaloRenderPipelines;
@@ -112,7 +114,13 @@ public class ClickGUI extends Screen {
     private long searchLastBlinkTime = 0;
     private boolean searchCursorVisible = true;
     private boolean searchLoading = false;
+    private String searchMessage = null; //shown when a finished search has no results (error or "No results")
     private java.util.List<SpotifyManager.SearchResultTrack> searchResults = new java.util.ArrayList<>();
+    private static final int SEARCH_PAGE_SIZE = 4;
+    private int searchPage = 0;
+    private boolean searchHasMore = false;
+    private int searchNextOffset = 0;
+    private boolean searchLoadingMore = false;
     private SpotifyManager.SearchFilter currentSearchFilter = SpotifyManager.SearchFilter.ALL;
 
     private void setAndTriggerSearchFilter(SpotifyManager.SearchFilter filter) {
@@ -164,6 +172,8 @@ public class ClickGUI extends Screen {
         searchResults.clear();
         searchArtRenderers.clear();
         searchLoading = false;
+        searchMessage = null;
+        resetSearchPaging();
         currentSearchFilter = SpotifyManager.SearchFilter.ALL;
         filterIndicatorX.setStartValue(0.0f);
         filterIndicatorWidth.setStartValue(0.0f);
@@ -825,6 +835,20 @@ public class ClickGUI extends Screen {
                         0.0f,
                         scissor
                 ));
+            } else if (searchResults.isEmpty() && searchMessage != null) {
+                float msgCenterY = y + 38.0f + (HEIGHT - 38.0f - PADDING) / 2.0f;
+                float msgCenterX = x + WIDTH / 2.0f;
+                var msgFont = MsdfFontManager.getFont("productsans-semibold", 7.0f);
+                if (msgFont != null) {
+                    String msg = searchMessage;
+                    float maxW = WIDTH - PADDING * 4.0f;
+                    while (msg.length() > 4 && msgFont.getWidth(msg, 7.0f) > maxW) {
+                        msg = msg.substring(0, msg.length() - 4) + "...";
+                    }
+                    float textW = msgFont.getWidth(msg, 7.0f);
+                    graphics.guiRenderState.addGuiElement(new HaloFontRenderState(msgFont, msg, new Matrix3x2f(pose), msgCenterX - textW / 2.0f, msgCenterY - msgFont.getHeight(7.0f) / 2.0f, 7.0f, ARGB.color(255, 161, 161, 170), scissor
+                    ));
+                }
             } else {
                 // Render search results!
                 float listStartY = y + 38.0f;
@@ -835,9 +859,11 @@ public class ClickGUI extends Screen {
                 var resultFont = MsdfFontManager.getFont("productsans-medium", 6.5f);
                 var resultIconFont = MsdfFontManager.getFont("fluid-regular", 10.0f);
 
-                for (int i = 0; i < Math.min(searchResults.size(), 4); i++) {
+                int pageStart = searchPage * SEARCH_PAGE_SIZE;
+                int pageEnd = Math.min(searchResults.size(), pageStart + SEARCH_PAGE_SIZE);
+                for (int i = pageStart; i < pageEnd; i++) {
                     SpotifyManager.SearchResultTrack track = searchResults.get(i);
-                    float itemY = listStartY + i * (itemH + 2.0f);
+                    float itemY = listStartY + (i - pageStart) * (itemH + 2.0f);
 
                     // Hover highlight
                     boolean itemHovered = isHovered(mouseX, mouseY, listX, itemY, listW, itemH);
@@ -971,6 +997,40 @@ public class ClickGUI extends Screen {
                         ));
                     }
                 }
+
+                if (resultFont != null && isSearchPagerVisible()) {
+                    float pagerY = searchPagerY(y);
+                    float pagerCenterX = listX + listW / 2.0f;
+                    float pagerTextY = pagerY + SEARCH_PAGER_H / 2.0f - resultFont.getHeight(6.0f) / 2.0f;
+                    String pageText = (searchPage + 1) + " / " + searchPageCount() + (searchHasMore ? "+" : "");
+                    if (searchLoadingMore && searchPage == searchPageCount() - 1) pageText += " ...";
+                    float pageTextW = resultFont.getWidth(pageText, 6.0f);
+                    graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
+                            resultFont, pageText, new Matrix3x2f(pose),
+                            pagerCenterX - pageTextW / 2.0f, pagerTextY, 6.0f,
+                            ARGB.color(255, 161, 161, 170), scissor
+                    ));
+
+                    boolean canPrev = searchPage > 0;
+                    boolean canNext = searchPage < searchPageCount() - 1;
+                    float prevX = pagerCenterX - SEARCH_PAGER_ARROW_OFFSET;
+                    float nextX = pagerCenterX + SEARCH_PAGER_ARROW_OFFSET;
+                    boolean prevHovered = canPrev && isHovered(mouseX, mouseY, prevX - SEARCH_PAGER_ARROW_W / 2.0f, pagerY, SEARCH_PAGER_ARROW_W, SEARCH_PAGER_H);
+                    boolean nextHovered = canNext && isHovered(mouseX, mouseY, nextX - SEARCH_PAGER_ARROW_W / 2.0f, pagerY, SEARCH_PAGER_ARROW_W, SEARCH_PAGER_H);
+                    int disabledColor = ARGB.color(255, 70, 70, 75);
+                    int idleColor = ARGB.color(255, 161, 161, 170);
+                    int hoverColor = ARGB.color(255, 255, 255, 255);
+                    graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
+                            resultFont, "<", new Matrix3x2f(pose),
+                            prevX - resultFont.getWidth("<", 7.0f) / 2.0f, pagerY + SEARCH_PAGER_H / 2.0f - resultFont.getHeight(7.0f) / 2.0f, 7.0f,
+                            !canPrev ? disabledColor : (prevHovered ? hoverColor : idleColor), scissor
+                    ));
+                    graphics.guiRenderState.addGuiElement(new HaloFontRenderState(
+                            resultFont, ">", new Matrix3x2f(pose),
+                            nextX - resultFont.getWidth(">", 7.0f) / 2.0f, pagerY + SEARCH_PAGER_H / 2.0f - resultFont.getHeight(7.0f) / 2.0f, 7.0f,
+                            !canNext ? disabledColor : (nextHovered ? hoverColor : idleColor), scissor
+                    ));
+                }
             }
         }
 
@@ -1004,6 +1064,23 @@ public class ClickGUI extends Screen {
         }
         loadAssets();
         super.extractRenderState(graphics, mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (!searchInputText.isEmpty() && !searchResults.isEmpty() && scrollY != 0.0) {
+            float x = resolvePanelX(this.width);
+            float y = resolvePanelY(this.height);
+            float centerX = x + WIDTH / 2.0f;
+            float centerY = y + HEIGHT / 2.0f;
+            double mx = centerX + (mouseX - centerX) / guiScale;
+            double my = centerY + (mouseY - centerY) / guiScale;
+            if (isHovered(mx, my, x + PADDING, y + 38.0f, WIDTH - PADDING * 2.0f, HEIGHT - 38.0f)) {
+                changeSearchPage(scrollY < 0 ? 1 : -1);
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     @Override
@@ -1087,9 +1164,24 @@ public class ClickGUI extends Screen {
                 float listW = WIDTH - PADDING * 2.0f;
                 float listX = x + PADDING;
 
-                for (int i = 0; i < Math.min(searchResults.size(), 4); i++) {
+                if (isSearchPagerVisible()) {
+                    float pagerY = searchPagerY(y);
+                    float pagerCenterX = listX + listW / 2.0f;
+                    if (isHovered(mouseX, mouseY, pagerCenterX - SEARCH_PAGER_ARROW_OFFSET - SEARCH_PAGER_ARROW_W / 2.0f, pagerY, SEARCH_PAGER_ARROW_W, SEARCH_PAGER_H)) {
+                        changeSearchPage(-1);
+                        return true;
+                    }
+                    if (isHovered(mouseX, mouseY, pagerCenterX + SEARCH_PAGER_ARROW_OFFSET - SEARCH_PAGER_ARROW_W / 2.0f, pagerY, SEARCH_PAGER_ARROW_W, SEARCH_PAGER_H)) {
+                        changeSearchPage(1);
+                        return true;
+                    }
+                }
+
+                int pageStart = searchPage * SEARCH_PAGE_SIZE;
+                int pageEnd = Math.min(searchResults.size(), pageStart + SEARCH_PAGE_SIZE);
+                for (int i = pageStart; i < pageEnd; i++) {
                     SpotifyManager.SearchResultTrack track = searchResults.get(i);
-                    float itemY = listStartY + i * (itemH + 2.0f);
+                    float itemY = listStartY + (i - pageStart) * (itemH + 2.0f);
                     
                     float playBtnW = 10.0f;
                     float likeBtnW = 10.0f;
@@ -1522,18 +1614,31 @@ public class ClickGUI extends Screen {
         return false;
     }
 
+    public static void writeConfig(JsonObject json) {
+        ConfigManager.putFloat(json, "x", panelX);
+        ConfigManager.putFloat(json, "y", panelY);
+        json.addProperty("scale", guiScale);
+    }
+
+    public static void readConfig(JsonObject json) {
+        panelX = ConfigManager.getFloat(json, "x", Float.NaN);
+        panelY = ConfigManager.getFloat(json, "y", Float.NaN);
+        guiScale = Math.clamp(ConfigManager.getFloat(json, "scale", guiScale), 0.5f, 1.5f);
+    }
+
     private static float resolvePanelX(int screenWidth) {
         if (Float.isNaN(panelX)) {
             return (screenWidth - WIDTH) / 2.0f;
         }
-        return panelX;
+        //Keep the panel reachable if a saved position is off-screen after a resolution change
+        return Math.clamp(panelX, 40.0f - WIDTH, screenWidth - 40.0f);
     }
 
     private static float resolvePanelY(int screenHeight) {
         if (Float.isNaN(panelY)) {
             return (screenHeight - HEIGHT) / 2.0f;
         }
-        return panelY;
+        return Math.clamp(panelY, 0.0f, Math.max(0.0f, screenHeight - 40.0f));
     }
 
     public static boolean isHovered(double mouseX, double mouseY, float x, float y, float width, float height) {
@@ -2062,19 +2167,86 @@ public class ClickGUI extends Screen {
             searchResults.clear();
             searchArtRenderers.clear();
             searchLoading = false;
+            searchMessage = null;
+            resetSearchPaging();
             return;
         }
         searchLoading = true;
+        searchMessage = null;
         SpotifyManager.SearchFilter filter = this.currentSearchFilter;
         java.util.concurrent.CompletableFuture.runAsync(() -> {
-            var results = SpotifyManager.getInstance().search(query, filter);
+            var page = SpotifyManager.getInstance().search(query, filter, 0);
+            String error = SpotifyManager.getInstance().getLastSearchError();
             Minecraft.getInstance().execute(() -> {
                 if (searchInputText.equals(query) && this.currentSearchFilter == filter) {
-                    this.searchResults = results;
+                    this.searchResults = page.results();
                     this.searchLoading = false;
+                    this.searchMessage = page.results().isEmpty() ? (error != null ? error : "No results") : null;
+                    resetSearchPaging();
+                    this.searchHasMore = page.hasMore();
+                    this.searchNextOffset = page.nextOffset();
+                    if (searchPageCount() == 1) loadMoreSearchResults();
                 }
             });
         });
+    }
+
+    private void resetSearchPaging() {
+        searchPage = 0;
+        searchHasMore = false;
+        searchNextOffset = 0;
+        searchLoadingMore = false;
+    }
+
+    private int searchPageCount() {
+        return Math.max(1, (searchResults.size() + SEARCH_PAGE_SIZE - 1) / SEARCH_PAGE_SIZE);
+    }
+
+    private void changeSearchPage(int delta) {
+        int target = searchPage + delta;
+        if (target < 0 || target >= searchPageCount()) return;
+        searchPage = target;
+        // Prefetch the next batch once the last loaded page is reached, so "next" is ready by the time it's needed
+        if (searchPage == searchPageCount() - 1) {
+            loadMoreSearchResults();
+        }
+    }
+
+    private void loadMoreSearchResults() {
+        if (searchLoadingMore || !searchHasMore || searchInputText.isEmpty()) return;
+        searchLoadingMore = true;
+        String query = searchInputText;
+        SpotifyManager.SearchFilter filter = this.currentSearchFilter;
+        int offset = searchNextOffset;
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            var page = SpotifyManager.getInstance().search(query, filter, offset);
+            Minecraft.getInstance().execute(() -> {
+                if (!searchInputText.equals(query) || this.currentSearchFilter != filter || searchNextOffset != offset) return;
+                var merged = new java.util.ArrayList<>(searchResults);
+                var seen = new java.util.HashSet<String>();
+                for (var r : merged) seen.add(r.id());
+                for (var r : page.results()) {
+                    if (seen.add(r.id())) merged.add(r);
+                }
+                this.searchResults = merged;
+                this.searchHasMore = page.hasMore();
+                this.searchNextOffset = page.nextOffset();
+                this.searchLoadingMore = false;
+            });
+        });
+    }
+
+    // Pager row below the result list: "<  2 / 5  >"
+    private static float searchPagerY(float y) {
+        return y + 38.0f + SEARCH_PAGE_SIZE * 22.0f + 1.0f;
+    }
+
+    private static final float SEARCH_PAGER_H = 9.0f;
+    private static final float SEARCH_PAGER_ARROW_OFFSET = 28.0f;
+    private static final float SEARCH_PAGER_ARROW_W = 12.0f;
+
+    private boolean isSearchPagerVisible() {
+        return searchResults.size() > SEARCH_PAGE_SIZE || searchHasMore;
     }
 
     private static char keyToChar(int keyCode, long window) {

@@ -47,7 +47,7 @@ public final class MathUtility {
     }
 
     public static Vec3 getInterpolatedPositionRelative(final LivingEntity entity, final float tickDelta) {
-        final Camera camera = mc.gameRenderer.getMainCamera();
+        final Camera camera = mc.gameRenderer.mainCamera();
         return getInterpolatedPosition(entity, tickDelta).subtract(camera.position());
     }
 
